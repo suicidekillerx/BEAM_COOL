@@ -21,13 +21,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $singleUse = isset($_POST['single_use']) ? 1 : 0;
         $maxUses = $_POST['max_uses'] ?? null;
         $expiresAt = $_POST['expires_at'] ?? null;
+        $generateMultiple = isset($_POST['generate_multiple']) ? 1 : 0;
         
         if (!empty($password)) {
             $pdo = getDBConnection();
-            $stmt = $pdo->prepare("INSERT INTO passwords (password, name, single_use, max_uses, expires_at) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$password, $name, $singleUse, $maxUses, $expiresAt]);
             
-            $success = 'Password added successfully!';
+            if ($generateMultiple && $maxUses && $maxUses > 1) {
+                // Generate multiple unique passwords
+                $baseName = $name ?: 'Generated Password';
+                $generatedCount = 0;
+                
+                for ($i = 1; $i <= $maxUses; $i++) {
+                    $uniquePassword = generateUniquePassword();
+                    $uniqueName = $baseName . ' #' . $i;
+                    
+                    $stmt = $pdo->prepare("INSERT INTO passwords (password, name, single_use, max_uses, expires_at) VALUES (?, ?, ?, ?, ?)");
+                    $stmt->execute([$uniquePassword, $uniqueName, 1, 1, $expiresAt]);
+                    $generatedCount++;
+                }
+                
+                $success = "Generated $generatedCount unique passwords successfully!";
+            } else {
+                // Single password creation (original logic)
+                $stmt = $pdo->prepare("INSERT INTO passwords (password, name, single_use, max_uses, expires_at) VALUES (?, ?, ?, ?, ?)");
+                $stmt->execute([$password, $name, $singleUse, $maxUses, $expiresAt]);
+                
+                $success = 'Password added successfully!';
+            }
         } else {
             $error = 'Password is required.';
         }
@@ -40,6 +60,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$passwordId]);
             
             $success = 'Password deleted successfully!';
+        }
+    } elseif ($action === 'delete_password_group') {
+        $baseName = $_POST['base_name'] ?? '';
+        
+        if (!empty($baseName)) {
+            $pdo = getDBConnection();
+            // Delete all passwords that match the base name (with or without #number suffix)
+            $stmt = $pdo->prepare("DELETE FROM passwords WHERE name = ? OR name LIKE ?");
+            $stmt->execute([$baseName, $baseName . ' #%']);
+            
+            $success = 'Password group deleted successfully!';
         }
     } elseif ($action === 'clear_all_sessions') {
         deactivateAllPasswordSessions();
@@ -117,18 +148,38 @@ $activeSessions = getActivePasswordSessions();
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
-                                <?php foreach ($passwords as $password): ?>
-                                <tr>
+                                <?php 
+                                // Group passwords by base name (remove #number suffix)
+                                $groupedPasswords = [];
+                                foreach ($passwords as $password) {
+                                    $baseName = preg_replace('/\s+#\d+$/', '', $password['name']);
+                                    if (!isset($groupedPasswords[$baseName])) {
+                                        $groupedPasswords[$baseName] = [];
+                                    }
+                                    $groupedPasswords[$baseName][] = $password;
+                                }
+                                
+                                foreach ($groupedPasswords as $baseName => $passwordGroup): 
+                                    $mainPassword = $passwordGroup[0]; // First password in group
+                                    $isGeneratedGroup = count($passwordGroup) > 1;
+                                ?>
+                                <tr class="password-group-row" data-group="<?php echo htmlspecialchars($baseName); ?>">
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="flex items-center">
-                                            <span class="font-mono text-sm bg-gray-100 px-2 py-1 rounded"><?php echo htmlspecialchars($password['password']); ?></span>
+                                            <span class="font-mono text-sm bg-gray-100 px-2 py-1 rounded"><?php echo htmlspecialchars($mainPassword['password']); ?></span>
+                                            <?php if ($isGeneratedGroup): ?>
+                                                <span class="ml-2 text-xs text-gray-500">(+<?php echo count($passwordGroup) - 1; ?> more)</span>
+                                            <?php endif; ?>
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        <?php echo htmlspecialchars($password['name'] ?? 'Unnamed'); ?>
+                                        <?php echo htmlspecialchars($baseName); ?>
+                                        <?php if ($isGeneratedGroup): ?>
+                                            <span class="text-xs text-gray-500">(<?php echo count($passwordGroup); ?> total)</span>
+                                        <?php endif; ?>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <?php if ($password['single_use']): ?>
+                                        <?php if ($mainPassword['single_use']): ?>
                                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                                                 Single Use
                                             </span>
@@ -139,16 +190,19 @@ $activeSessions = getActivePasswordSessions();
                                         <?php endif; ?>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        <?php echo $password['used_count']; ?>
-                                        <?php if ($password['max_uses']): ?>
-                                            / <?php echo $password['max_uses']; ?>
+                                        <?php 
+                                        $totalUsed = array_sum(array_column($passwordGroup, 'used_count'));
+                                        $totalMax = array_sum(array_column($passwordGroup, 'max_uses'));
+                                        echo $totalUsed;
+                                        if ($totalMax > 0): ?>
+                                            / <?php echo $totalMax; ?>
                                         <?php endif; ?>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <?php 
-                                        $isExpired = $password['expires_at'] && strtotime($password['expires_at']) < time();
-                                        $isMaxedOut = $password['max_uses'] && $password['used_count'] >= $password['max_uses'];
-                                        $isSingleUsed = $password['single_use'] && $password['used_count'] > 0;
+                                        $isExpired = $mainPassword['expires_at'] && strtotime($mainPassword['expires_at']) < time();
+                                        $isMaxedOut = $totalMax && $totalUsed >= $totalMax;
+                                        $isSingleUsed = $mainPassword['single_use'] && $totalUsed > 0;
                                         
                                         if ($isExpired || $isMaxedOut || $isSingleUsed): ?>
                                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
@@ -161,16 +215,48 @@ $activeSessions = getActivePasswordSessions();
                                         <?php endif; ?>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        <?php echo date('M j, Y', strtotime($password['created_at'])); ?>
+                                        <?php echo date('M j, Y', strtotime($mainPassword['created_at'])); ?>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                        <form method="POST" class="inline" onsubmit="return confirm('Are you sure you want to delete this password?')">
-                                            <input type="hidden" name="action" value="delete_password">
-                                            <input type="hidden" name="password_id" value="<?php echo $password['id']; ?>">
-                                            <button type="submit" class="text-red-600 hover:text-red-900">Delete</button>
-                                        </form>
+                                        <div class="flex items-center space-x-2">
+                                            <?php if ($isGeneratedGroup): ?>
+                                                <button onclick="togglePasswordGroup('<?php echo htmlspecialchars($baseName); ?>')" class="text-blue-600 hover:text-blue-900">
+                                                    <svg class="w-4 h-4 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                                    </svg>
+                                                </button>
+                                            <?php endif; ?>
+                                            <form method="POST" class="inline" onsubmit="return confirm('Are you sure you want to delete this password group?')">
+                                                <input type="hidden" name="action" value="delete_password_group">
+                                                <input type="hidden" name="base_name" value="<?php echo htmlspecialchars($baseName); ?>">
+                                                <button type="submit" class="text-red-600 hover:text-red-900">Delete</button>
+                                            </form>
+                                        </div>
                                     </td>
                                 </tr>
+                                
+                                <?php if ($isGeneratedGroup): ?>
+                                <tr class="password-group-details hidden" data-group="<?php echo htmlspecialchars($baseName); ?>">
+                                    <td colspan="7" class="px-6 py-4 bg-gray-50">
+                                        <div class="space-y-2">
+                                            <h4 class="text-sm font-medium text-gray-900">All passwords in this group:</h4>
+                                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                                <?php foreach ($passwordGroup as $password): ?>
+                                                <div class="flex items-center justify-between p-2 bg-white rounded border">
+                                                    <div class="flex-1">
+                                                        <div class="font-mono text-xs bg-gray-100 px-2 py-1 rounded"><?php echo htmlspecialchars($password['password']); ?></div>
+                                                        <div class="text-xs text-gray-500"><?php echo htmlspecialchars($password['name']); ?></div>
+                                                    </div>
+                                                    <div class="text-xs text-gray-500 ml-2">
+                                                        <?php echo $password['used_count']; ?>/<?php echo $password['max_uses'] ?: '∞'; ?>
+                                                    </div>
+                                                </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <?php endif; ?>
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
@@ -273,7 +359,16 @@ $activeSessions = getActivePasswordSessions();
                     
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Max Uses (Optional)</label>
-                        <input type="number" name="max_uses" min="1" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent">
+                        <input type="number" name="max_uses" min="1" id="max_uses" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent">
+                        <p class="text-xs text-gray-500 mt-1">Leave empty for unlimited uses, or set a number to generate multiple unique passwords</p>
+                    </div>
+                    
+                    <div class="mb-4" id="generate_multiple_section" style="display: none;">
+                        <label class="flex items-center">
+                            <input type="checkbox" name="generate_multiple" id="generate_multiple" class="h-4 w-4 text-black focus:ring-black border-gray-300 rounded">
+                            <span class="ml-2 text-sm text-gray-700">Generate Multiple Unique Passwords</span>
+                        </label>
+                        <p class="text-xs text-gray-500 mt-1">When enabled, will create one unique password per use instead of sharing one password</p>
                     </div>
                     
                     <div class="mb-4">
@@ -302,6 +397,19 @@ $activeSessions = getActivePasswordSessions();
             }
         });
         
+        // Handle max uses and generate multiple functionality
+        document.getElementById('max_uses').addEventListener('input', function() {
+            const maxUses = this.value;
+            const generateSection = document.getElementById('generate_multiple_section');
+            
+            if (maxUses && maxUses > 1) {
+                generateSection.style.display = 'block';
+            } else {
+                generateSection.style.display = 'none';
+                document.getElementById('generate_multiple').checked = false;
+            }
+        });
+        
         // Clear all sessions function
         function clearAllSessions() {
             if (confirm('Are you sure you want to clear all active password sessions? This will log out all users from secret collections.')) {
@@ -310,6 +418,21 @@ $activeSessions = getActivePasswordSessions();
                 form.innerHTML = '<input type="hidden" name="action" value="clear_all_sessions">';
                 document.body.appendChild(form);
                 form.submit();
+            }
+        }
+        
+        // Toggle password group details
+        function togglePasswordGroup(baseName) {
+            const groupRow = document.querySelector(`.password-group-row[data-group="${baseName}"]`);
+            const groupDetails = document.querySelector(`.password-group-details[data-group="${baseName}"]`);
+            const arrow = groupRow.querySelector('button svg');
+            
+            if (groupDetails.classList.contains('hidden')) {
+                groupDetails.classList.remove('hidden');
+                arrow.classList.add('rotate-180');
+            } else {
+                groupDetails.classList.add('hidden');
+                arrow.classList.remove('rotate-180');
             }
         }
     </script>

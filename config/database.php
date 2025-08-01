@@ -260,7 +260,7 @@ function initializeDatabase() {
     }
     
     // Insert default data
-   // insertDefaultData();
+   insertDefaultData();
     
     // Migrate orders table to ensure all fields exist
     migrateOrdersTable();

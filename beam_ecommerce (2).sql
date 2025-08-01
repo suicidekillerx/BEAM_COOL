@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jul 31, 2025 at 04:49 AM
+-- Generation Time: Aug 01, 2025 at 03:14 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -208,7 +208,10 @@ INSERT INTO `cart_items` (`id`, `session_id`, `product_id`, `size`, `quantity`, 
 (123, '2s29o19759naho2qb0oesna7s4', 1, 'M', 2, '2025-07-30 11:39:02', '2025-07-30 11:39:02'),
 (124, '2s29o19759naho2qb0oesna7s4', 2, 'M', 2, '2025-07-30 11:39:02', '2025-07-30 11:39:02'),
 (125, '65goaeua3mcj04lq6e55kuda12', 1, 'M', 2, '2025-07-30 11:48:12', '2025-07-30 11:48:12'),
-(126, '65goaeua3mcj04lq6e55kuda12', 2, 'M', 2, '2025-07-30 11:48:12', '2025-07-30 11:48:12');
+(126, '65goaeua3mcj04lq6e55kuda12', 2, 'M', 2, '2025-07-30 11:48:12', '2025-07-30 11:48:12'),
+(141, 'qd7vn2f7h4vftdso896mgrbp3k', 17, 'XS', 2, '2025-07-31 12:44:44', '2025-07-31 12:48:46'),
+(142, 'qd7vn2f7h4vftdso896mgrbp3k', 16, 'XS', 1, '2025-07-31 12:48:58', '2025-07-31 12:48:58'),
+(143, 'qd7vn2f7h4vftdso896mgrbp3k', 15, 'S', 1, '2025-07-31 12:49:19', '2025-07-31 12:49:19');
 
 -- --------------------------------------------------------
 
@@ -258,19 +261,21 @@ CREATE TABLE `collections` (
   `sort_order` int(11) DEFAULT 0,
   `is_active` tinyint(1) DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `secret` tinyint(1) DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `collections`
 --
 
-INSERT INTO `collections` (`id`, `name`, `slug`, `image`, `description`, `sort_order`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 'collect iyed', 'summer-vibes', 'images/collection1.webp', 'Explore our latest summer collection', 1, 1, '2025-07-27 01:32:39', '2025-07-27 02:06:30'),
-(2, 'URBAN STREET', 'urban-street', 'images/collection2.jpg', 'Street style meets comfort', 2, 1, '2025-07-27 01:32:39', '2025-07-27 01:32:39'),
-(3, 'WINTER ESSENTIALS', 'winter-essentials', 'images/collection3.webp', 'Stay warm and stylish', 3, 1, '2025-07-27 01:32:39', '2025-07-27 01:32:39'),
-(4, 'LIMITED EDITION', 'limited-edition', 'images/collection4.webp', 'Exclusive designs for true fans', 4, 1, '2025-07-27 01:32:39', '2025-07-27 01:32:39'),
-(118, 'youssef', 'youssef', 'images/collections/collection_1753667613_3803.jpg', 'youssef', 0, 1, '2025-07-28 01:53:33', '2025-07-28 01:53:33');
+INSERT INTO `collections` (`id`, `name`, `slug`, `image`, `description`, `sort_order`, `is_active`, `created_at`, `updated_at`, `secret`) VALUES
+(1, 'collect iyed', 'collect-iyed', 'images/collection1.webp', 'Explore our latest summer collection', 0, 1, '2025-07-27 01:32:39', '2025-07-31 22:39:33', 1),
+(2, 'URBAN STREET', 'urban-street', 'images/collection2.jpg', 'Street style meets comfort', 2, 1, '2025-07-27 01:32:39', '2025-07-27 01:32:39', 0),
+(3, 'WINTER ESSENTIALS', 'winter-essentials', 'images/collection3.webp', 'Stay warm and stylish', 0, 1, '2025-07-27 01:32:39', '2025-07-31 22:57:54', 0),
+(4, 'LIMITED EDITION', 'limited-edition', 'images/collection4.webp', 'Exclusive designs for true fans', 4, 1, '2025-07-27 01:32:39', '2025-07-27 01:32:39', 0),
+(118, 'youssef', 'youssef', 'images/collections/collection_1753667613_3803.jpg', 'youssef', 0, 1, '2025-07-28 01:53:33', '2025-07-31 22:39:24', 0),
+(119, 'test product', 'test-product', 'images/collections/collection_1753987267_9315.png', 'edsdsds', 0, 1, '2025-07-31 18:41:07', '2025-07-31 18:41:07', 1);
 
 -- --------------------------------------------------------
 
@@ -366,10 +371,10 @@ CREATE TABLE `orders` (
 --
 
 INSERT INTO `orders` (`id`, `order_number`, `session_id`, `customer_name`, `customer_email`, `customer_phone`, `shipping_address`, `shipping_city`, `shipping_postal_code`, `shipping_notes`, `subtotal`, `tax`, `shipping_cost`, `discount`, `promo_code_id`, `promo_code`, `total`, `payment_method`, `order_status`, `notes`, `created_at`, `updated_at`, `tracking_number`, `shipped_at`, `delivered_at`, `admin_notes`, `payment_status`) VALUES
-(3, 'BEAM202507271140136B7D', 'dhmrknssc0a7ekm1cju8k9s1eg', 'iyed hosni', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Tunis', '1002', 'Delivery Notes', 595.000, 113.050, 15.000, 0.000, NULL, NULL, 723.050, 'cash_on_delivery', 'pending', 'Order Notes', '2025-07-27 09:40:13', '2025-07-27 09:40:13', NULL, NULL, NULL, NULL, 'pending'),
+(3, 'BEAM202507271140136B7D', 'dhmrknssc0a7ekm1cju8k9s1eg', 'iyed hosni', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Tunis', '1002', 'Delivery Notes', 595.000, 113.050, 15.000, 0.000, NULL, NULL, 723.050, 'cash_on_delivery', 'pending', 'Order Notes', '2025-07-27 09:40:13', '2025-08-01 01:08:57', '754010536101', NULL, NULL, '\nDelivery Barcode: 754010536101\nPrint Link: https://www.firstdeliverygroup.com/api/v2/print?q=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZENvbW1hbmRlIjoyMTA0MDc3OCwidG9rZW5GcnMiOiJiYzg5M2U1Ny02MTdlLTQ5NDMtOGIxMi1jNWY2YjUxNTI4MTkiLCJpYXQiOjE3NTQwMTA1MzZ9.o1640V4CeDdMOS0cZ6b5ClPX03xfZ0pzE6Co1TrXe4s', 'pending'),
 (4, 'BEAM202507272144133A4E', 'pcau4tjue68hrfmvhej9uf6o4p', 'iyed hosni', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Tunis', '1002', '', 555.000, 83.250, 8.000, 0.000, NULL, NULL, 646.250, 'cash_on_delivery', 'pending', '', '2025-07-27 19:44:13', '2025-07-27 19:44:13', NULL, NULL, NULL, NULL, 'pending'),
 (5, 'BEAM202507272342591520', 'pcau4tjue68hrfmvhej9uf6o4p', 'iyed hosni', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Tunis', '1002', 'belhi , ijewni wra carfour', 180.000, 27.000, 8.000, 0.000, NULL, NULL, 215.000, 'cash_on_delivery', 'pending', 'blhi , 7otou fi sandou9', '2025-07-27 21:42:59', '2025-07-27 21:42:59', NULL, NULL, NULL, NULL, 'pending'),
-(6, 'BEAM20250727235419E922', 'pcau4tjue68hrfmvhej9uf6o4p', 'iyed hosni', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Zarzis', '1002', 'ijeni wra carfour', 225.000, 33.750, 8.000, 0.000, NULL, NULL, 266.750, 'cash_on_delivery', 'pending', 'nhebou fi bakou roze', '2025-07-27 21:54:19', '2025-07-27 21:54:19', NULL, NULL, NULL, NULL, 'pending'),
+(6, 'BEAM20250727235419E922', 'pcau4tjue68hrfmvhej9uf6o4p', 'iyed hosni', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Zarzis', '1002', 'ijeni wra carfour', 225.000, 33.750, 8.000, 0.000, NULL, NULL, 266.750, 'cash_on_delivery', 'pending', 'nhebou fi bakou roze', '2025-07-27 21:54:19', '2025-08-01 01:01:07', '754010066031', NULL, NULL, '\nDelivery Barcode: 754010066031\nPrint Link: https://www.firstdeliverygroup.com/api/v2/print?q=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZENvbW1hbmRlIjoyMTA0MDc3NiwidG9rZW5GcnMiOiJiYzg5M2U1Ny02MTdlLTQ5NDMtOGIxMi1jNWY2YjUxNTI4MTkiLCJpYXQiOjE3NTQwMTAwNjZ9.wqo0jn_jNCkPP0esUUG9ywhug6p-i-HuYnZ_lcGTeL8', 'pending'),
 (7, 'BEAM20250728045308DE2E', 'pcau4tjue68hrfmvhej9uf6o4p', 'iyed hosni', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Tunis', '1002', 'Delivery Notes', 50.000, 7.500, 8.000, 0.000, NULL, NULL, 65.500, 'cash_on_delivery', 'shipped', 'Order Notes', '2025-07-28 02:53:08', '2025-07-28 02:54:39', 'azzaezaezae', NULL, NULL, 'azeazeazezae', 'pending'),
 (8, 'BEAM20250729114849B59D', 'qd7vn2f7h4vftdso896mgrbp3k', 'iyed hosni', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Gafsa', '1002', '', 135.000, 20.250, 8.000, 0.000, NULL, NULL, 163.250, 'cash_on_delivery', 'confirmed', 'aze adsfgdfshg', '2025-07-29 09:48:49', '2025-07-29 09:53:30', '', NULL, NULL, '', 'pending'),
 (9, 'BEAM202507301414598C06', 'qd7vn2f7h4vftdso896mgrbp3k', 'iyed hosni', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Tunis', '1002', '', 85.000, 12.750, 4.000, 0.000, NULL, NULL, 101.750, 'cash_on_delivery', 'pending', 'QS', '2025-07-30 12:14:59', '2025-07-30 12:14:59', NULL, NULL, NULL, NULL, 'pending'),
@@ -381,10 +386,11 @@ INSERT INTO `orders` (`id`, `order_number`, `session_id`, `customer_name`, `cust
 (18, 'BEAM202507302029245E14', 'qd7vn2f7h4vftdso896mgrbp3k', 'hama', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Tunis', '1002', '', 260.000, 39.000, 4.000, 0.000, NULL, NULL, 303.000, 'cash_on_delivery', 'confirmed', '', '2025-07-30 18:29:24', '2025-07-30 18:29:55', NULL, NULL, NULL, NULL, 'pending'),
 (19, 'BEAM202507302044106AB4', 'qd7vn2f7h4vftdso896mgrbp3k', 'iyed hosni', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Tunis', '1002', '', 325.000, 48.750, 4.000, 0.000, NULL, NULL, 377.750, 'cash_on_delivery', 'confirmed', '', '2025-07-30 18:44:10', '2025-07-30 18:49:34', NULL, NULL, NULL, NULL, 'pending'),
 (20, 'BEAM20250730205141F8BB', 'qd7vn2f7h4vftdso896mgrbp3k', 'iyed hosni', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Tunis', '1002', '', 520.000, 78.000, 4.000, 0.000, NULL, NULL, 602.000, 'cash_on_delivery', 'confirmed', '', '2025-07-30 18:51:41', '2025-07-30 18:52:05', NULL, NULL, NULL, NULL, 'pending'),
-(21, 'BEAM202507302054238CAD', 'qd7vn2f7h4vftdso896mgrbp3k', 'iyed hosni', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Tunis', '1002', '', 650.000, 97.500, 4.000, 0.000, NULL, NULL, 751.500, 'cash_on_delivery', 'pending', '', '2025-07-30 18:54:23', '2025-07-30 18:54:23', NULL, NULL, NULL, NULL, 'pending'),
+(21, 'BEAM202507302054238CAD', 'qd7vn2f7h4vftdso896mgrbp3k', 'iyed hosni', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Tunis', '1002', '', 650.000, 97.500, 4.000, 0.000, NULL, NULL, 751.500, 'cash_on_delivery', 'pending', '', '2025-07-30 18:54:23', '2025-08-01 01:00:58', '754010057249', NULL, NULL, '\nDelivery Barcode: 754010057249\nPrint Link: https://www.firstdeliverygroup.com/api/v2/print?q=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZENvbW1hbmRlIjoyMTA0MDc3NSwidG9rZW5GcnMiOiJiYzg5M2U1Ny02MTdlLTQ5NDMtOGIxMi1jNWY2YjUxNTI4MTkiLCJpYXQiOjE3NTQwMTAwNTd9.qDakEZyyk7R5jTa2iI2rNn9j8LVvtOtrTK4BIVVVEzw', 'pending'),
 (22, 'BEAM202507310104227BE6', 'qd7vn2f7h4vftdso896mgrbp3k', 'iyed hosni', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Tunis', '1002', '', 150.000, 22.500, 4.000, 15.000, 11, 'TEST10', 161.500, 'cash_on_delivery', 'pending', '', '2025-07-30 23:04:22', '2025-07-30 23:04:22', NULL, NULL, NULL, NULL, 'pending'),
 (23, 'BEAM2025073101064364D5', 'qd7vn2f7h4vftdso896mgrbp3k', 'iyed hosni', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Tunis', '1002', '', 82.000, 12.300, 4.000, 0.000, NULL, NULL, 98.300, 'cash_on_delivery', 'cancelled', '', '2025-07-30 23:06:43', '2025-07-30 23:07:24', NULL, NULL, NULL, NULL, 'pending'),
-(24, 'BEAM202507310124114A19', 'qd7vn2f7h4vftdso896mgrbp3k', 'iyed hosni', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Tunis', '1002', '', 400.000, 0.000, 8.000, 40.000, 11, 'TEST10', 368.000, 'cash_on_delivery', 'confirmed', '', '2025-07-30 23:24:11', '2025-07-30 23:25:21', NULL, NULL, NULL, NULL, 'pending');
+(24, 'BEAM202507310124114A19', 'qd7vn2f7h4vftdso896mgrbp3k', 'iyed hosni', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Tunis', '1002', '', 400.000, 0.000, 8.000, 40.000, 11, 'TEST10', 368.000, 'cash_on_delivery', 'confirmed', '', '2025-07-30 23:24:11', '2025-08-01 01:00:47', '754010046680', NULL, NULL, '\nDelivery Barcode: 754009950505\nPrint Link: https://www.firstdeliverygroup.com/api/v2/print?q=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZENvbW1hbmRlIjoyMTA0MDc3MywidG9rZW5GcnMiOiJiYzg5M2U1Ny02MTdlLTQ5NDMtOGIxMi1jNWY2YjUxNTI4MTkiLCJpYXQiOjE3NTQwMDk5NTB9.fXPc3X7wNvNR13Dy1ezdnto6m65kWpVjdO5N8gqWfos\nDelivery Barcode: 754010046680\nPrint Link: https://www.firstdeliverygroup.com/api/v2/print?q=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZENvbW1hbmRlIjoyMTA0MDc3NCwidG9rZW5GcnMiOiJiYzg5M2U1Ny02MTdlLTQ5NDMtOGIxMi1jNWY2YjUxNTI4MTkiLCJpYXQiOjE3NTQwMTAwNDZ9.5mKNqCtCfDRnejiLAHqquxqBsBMbVkOGdOjqzZ-fmlU', 'pending'),
+(25, 'BEAM202508010246113F44', '31ij048div0ndmukl3gsnuj1a4', 'iyed hosni', 'iyed.hosni123@gmail.com', '27 324 103', '16 Rue Cyrus le Grand', 'Tunis', '1002', '', 612.000, 0.000, 8.000, 0.000, NULL, NULL, 620.000, 'cash_on_delivery', 'pending', '', '2025-08-01 00:46:11', '2025-08-01 01:13:27', '754010806416', NULL, NULL, '\nDelivery Barcode: 754009183146\nPrint Link: https://www.firstdeliverygroup.com/api/v2/print?q=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZENvbW1hbmRlIjoyMTA0MDc2OCwidG9rZW5GcnMiOiJiYzg5M2U1Ny02MTdlLTQ5NDMtOGIxMi1jNWY2YjUxNTI4MTkiLCJpYXQiOjE3NTQwMDkxODN9.7qBNrnWzh-TtEihC30eMbCR94WRUMysCvL0GThl98XE\nDelivery Barcode: 754009530853\nPrint Link: https://www.firstdeliverygroup.com/api/v2/print?q=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZENvbW1hbmRlIjoyMTA0MDc3MCwidG9rZW5GcnMiOiJiYzg5M2U1Ny02MTdlLTQ5NDMtOGIxMi1jNWY2YjUxNTI4MTkiLCJpYXQiOjE3NTQwMDk1MzB9.M9AzwsWxJo-1O3K6V7bIbR2aOu_GTW30F3NmWPhqc68\nDelivery Barcode: 754009752217\nPrint Link: https://www.firstdeliverygroup.com/api/v2/print?q=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZENvbW1hbmRlIjoyMTA0MDc3MiwidG9rZW5GcnMiOiJiYzg5M2U1Ny02MTdlLTQ5NDMtOGIxMi1jNWY2YjUxNTI4MTkiLCJpYXQiOjE3NTQwMDk3NTJ9.v_OMaJqmfqu0j-kCek339oP5v2TV6g2_uO5oUnm2D4M\nDelivery Barcode: 754010204024\nPrint Link: https://www.firstdeliverygroup.com/api/v2/print?q=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZENvbW1hbmRlIjoyMTA0MDc3NywidG9rZW5GcnMiOiJiYzg5M2U1Ny02MTdlLTQ5NDMtOGIxMi1jNWY2YjUxNTI4MTkiLCJpYXQiOjE3NTQwMTAyMDR9.vJgtMzTIGH5I62hpYzDlU-K6vdtFXn-O_aiv6ybw1yA\nDelivery Barcode: 754010806416\nPrint Link: https://www.firstdeliverygroup.com/api/v2/print?q=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZENvbW1hbmRlIjoyMTA0MDc3OSwidG9rZW5GcnMiOiJiYzg5M2U1Ny02MTdlLTQ5NDMtOGIxMi1jNWY2YjUxNTI4MTkiLCJpYXQiOjE3NTQwMTA4MDZ9.DEtPPimx2Ke-JnzSuHZYS-Vplv2cE0HK8zSp11u06RY', 'pending');
 
 -- --------------------------------------------------------
 
@@ -430,7 +436,63 @@ INSERT INTO `order_items` (`id`, `order_id`, `product_id`, `product_name`, `prod
 (21, 21, 11, 'PREMIUM POLO WHITE', 85.000, 65.000, 'XS', 10, 650.000, '2025-07-30 18:54:23'),
 (22, 22, 15, 'Smartphone S24', 50.000, NULL, '2XL', 3, 150.000, '2025-07-30 23:04:22'),
 (23, 23, 1, 'ASTRO HOODIE WHITE', 96.000, 82.000, 'XS', 1, 82.000, '2025-07-30 23:06:43'),
-(24, 24, 16, 'yassine', 400.000, NULL, 'XS', 1, 400.000, '2025-07-30 23:24:11');
+(24, 24, 16, 'yassine', 400.000, NULL, 'XS', 1, 400.000, '2025-07-30 23:24:11'),
+(25, 25, 11, 'PREMIUM POLO WHITE', 85.000, 65.000, 'S', 1, 65.000, '2025-08-01 00:46:11'),
+(26, 25, 17, 'iyed hosni', 547.000, NULL, 'XS', 1, 547.000, '2025-08-01 00:46:11');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `passwords`
+--
+
+CREATE TABLE `passwords` (
+  `id` int(11) NOT NULL,
+  `password` varchar(255) NOT NULL,
+  `name` varchar(100) DEFAULT NULL,
+  `single_use` tinyint(1) DEFAULT 0,
+  `used_count` int(11) DEFAULT 0,
+  `max_uses` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `expires_at` timestamp NULL DEFAULT NULL,
+  `is_active` tinyint(1) DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `passwords`
+--
+
+INSERT INTO `passwords` (`id`, `password`, `name`, `single_use`, `used_count`, `max_uses`, `created_at`, `expires_at`, `is_active`) VALUES
+(5, '123', 'tet', 0, 0, 100, '2025-07-31 21:53:12', '0000-00-00 00:00:00', 1),
+(6, '555', 'admin', 0, 7, 100, '2025-07-31 21:53:34', '2025-08-09 21:53:00', 1);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `password_sessions`
+--
+
+CREATE TABLE `password_sessions` (
+  `id` int(11) NOT NULL,
+  `password_id` int(11) NOT NULL,
+  `session_id` varchar(255) NOT NULL,
+  `user_ip` varchar(45) DEFAULT NULL,
+  `user_agent` text DEFAULT NULL,
+  `accessed_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `expires_at` timestamp NULL DEFAULT NULL,
+  `is_active` tinyint(1) DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `password_sessions`
+--
+
+INSERT INTO `password_sessions` (`id`, `password_id`, `session_id`, `user_ip`, `user_agent`, `accessed_at`, `expires_at`, `is_active`) VALUES
+(1, 6, '31ij048div0ndmukl3gsnuj1a4', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-07-31 22:16:10', '2025-08-01 23:16:10', 0),
+(3, 6, '31ij048div0ndmukl3gsnuj1a4', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-07-31 22:35:05', '2025-08-01 23:35:05', 0),
+(4, 6, '31ij048div0ndmukl3gsnuj1a4', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-07-31 22:36:55', '2025-08-01 23:36:55', 0),
+(5, 6, 'k07enjp4bm667kt3daegps1831', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-07-31 23:02:51', '2025-08-02 00:02:51', 0),
+(6, 6, 'khvr3s4sv515r4p1aroko48t0v', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0', '2025-07-31 23:03:54', '2025-08-02 00:03:54', 0);
 
 -- --------------------------------------------------------
 
@@ -797,7 +859,12 @@ INSERT INTO `site_settings` (`id`, `setting_key`, `setting_value`, `created_at`,
 (242, 'contact_phone', '+21627324103', '2025-07-29 22:00:15', '2025-07-30 01:25:25'),
 (243, 'address', '16 Rue Cyrus le Grand', '2025-07-29 22:00:15', '2025-07-30 01:25:25'),
 (246, 'currency', 'TND', '2025-07-29 22:00:15', '2025-07-29 22:00:15'),
-(247, 'maintenance_mode', '0', '2025-07-29 22:00:15', '2025-07-30 23:38:47');
+(247, 'maintenance_mode', '0', '2025-07-29 22:00:15', '2025-08-01 00:45:32'),
+(641, 'auto_open_cart', '1', '2025-07-31 12:43:23', '2025-07-31 12:48:52'),
+(677, 'maintenance_password_enabled', '0', '2025-07-31 13:34:24', '2025-07-31 16:34:04'),
+(678, 'maintenance_password', '', '2025-07-31 13:34:24', '2025-07-31 16:34:04'),
+(1266, 'secret_collection', '0', '2025-07-31 18:01:35', '2025-07-31 23:16:33'),
+(1392, 'first_delivery_token', 'bc893e57-617e-4943-8b12-c5f6b5152819', '2025-08-01 00:45:15', '2025-08-01 00:45:15');
 
 -- --------------------------------------------------------
 
@@ -965,6 +1032,21 @@ ALTER TABLE `order_items`
   ADD KEY `order_id` (`order_id`);
 
 --
+-- Indexes for table `passwords`
+--
+ALTER TABLE `passwords`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `password_sessions`
+--
+ALTER TABLE `password_sessions`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_password_sessions_session_id` (`session_id`),
+  ADD KEY `idx_password_sessions_password_id` (`password_id`),
+  ADD KEY `idx_password_sessions_active` (`is_active`);
+
+--
 -- Indexes for table `products`
 --
 ALTER TABLE `products`
@@ -1054,7 +1136,7 @@ ALTER TABLE `aboutus`
 -- AUTO_INCREMENT for table `cart_items`
 --
 ALTER TABLE `cart_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=141;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=146;
 
 --
 -- AUTO_INCREMENT for table `categories`
@@ -1066,7 +1148,7 @@ ALTER TABLE `categories`
 -- AUTO_INCREMENT for table `collections`
 --
 ALTER TABLE `collections`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=119;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=120;
 
 --
 -- AUTO_INCREMENT for table `footer_links`
@@ -1084,13 +1166,25 @@ ALTER TABLE `footer_sections`
 -- AUTO_INCREMENT for table `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
 
 --
 -- AUTO_INCREMENT for table `order_items`
 --
 ALTER TABLE `order_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
+
+--
+-- AUTO_INCREMENT for table `passwords`
+--
+ALTER TABLE `passwords`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+
+--
+-- AUTO_INCREMENT for table `password_sessions`
+--
+ALTER TABLE `password_sessions`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `products`
@@ -1126,7 +1220,7 @@ ALTER TABLE `promo_code_usage`
 -- AUTO_INCREMENT for table `site_settings`
 --
 ALTER TABLE `site_settings`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=641;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1412;
 
 --
 -- AUTO_INCREMENT for table `social_media`
@@ -1179,6 +1273,12 @@ ALTER TABLE `orders`
 --
 ALTER TABLE `order_items`
   ADD CONSTRAINT `order_items_ibfk_1` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `password_sessions`
+--
+ALTER TABLE `password_sessions`
+  ADD CONSTRAINT `password_sessions_ibfk_1` FOREIGN KEY (`password_id`) REFERENCES `passwords` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `products`

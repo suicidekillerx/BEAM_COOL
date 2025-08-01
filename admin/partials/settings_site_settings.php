@@ -306,6 +306,20 @@ foreach ($site_settings as $setting) {
                 </div>
                 
                 <div class="form-group">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Secret Collection Session Duration</label>
+                    <select name="secret_session_duration" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent">
+                        <option value="1" <?php echo getSiteSetting('secret_session_duration', '24') == '1' ? 'selected' : ''; ?>>1 Hour</option>
+                        <option value="2" <?php echo getSiteSetting('secret_session_duration', '24') == '2' ? 'selected' : ''; ?>>2 Hours</option>
+                        <option value="6" <?php echo getSiteSetting('secret_session_duration', '24') == '6' ? 'selected' : ''; ?>>6 Hours</option>
+                        <option value="12" <?php echo getSiteSetting('secret_session_duration', '24') == '12' ? 'selected' : ''; ?>>12 Hours</option>
+                        <option value="24" <?php echo getSiteSetting('secret_session_duration', '24') == '24' ? 'selected' : ''; ?>>24 Hours (Default)</option>
+                        <option value="48" <?php echo getSiteSetting('secret_session_duration', '24') == '48' ? 'selected' : ''; ?>>48 Hours</option>
+                        <option value="168" <?php echo getSiteSetting('secret_session_duration', '24') == '168' ? 'selected' : ''; ?>>7 Days</option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">How long users can access the secret collection after entering a password</p>
+                </div>
+                
+                <div class="form-group">
                     <label class="block text-sm font-medium text-gray-700 mb-2">First Delivery API Token</label>
                     <input type="password" name="first_delivery_token" value="<?= htmlspecialchars($settings['first_delivery_token'] ?? '') ?>" 
                            class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-black"

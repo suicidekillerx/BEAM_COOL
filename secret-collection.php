@@ -74,7 +74,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['password'])) {
                 // Create password session
                 $userIp = $_SERVER['REMOTE_ADDR'] ?? null;
                 $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
-                $sessionExpiresAt = date('Y-m-d H:i:s', strtotime('+24 hours')); // 24 hour session
+                
+                // Get session duration from admin settings (default 24 hours)
+                $sessionDurationHours = getSiteSetting('secret_session_duration', '24');
+                $sessionExpiresAt = date('Y-m-d H:i:s', strtotime('+' . $sessionDurationHours . ' hours'));
                 
                 createPasswordSession($password['id'], session_id(), $userIp, $userAgent, $sessionExpiresAt);
                 

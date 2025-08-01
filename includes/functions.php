@@ -92,6 +92,27 @@ function checkMaintenanceMode() {
     }
 }
 
+// Generate unique password for multiple password creation
+function generateUniquePassword($length = 8) {
+    $characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    $password = '';
+    
+    do {
+        $password = '';
+        for ($i = 0; $i < $length; $i++) {
+            $password .= $characters[rand(0, strlen($characters) - 1)];
+        }
+        
+        // Check if password already exists
+        $pdo = getDBConnection();
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM passwords WHERE password = ?");
+        $stmt->execute([$password]);
+        $exists = $stmt->fetchColumn() > 0;
+    } while ($exists);
+    
+    return $password;
+}
+
 // Get all categories
 function getCategories() {
     static $cachedCategories = null;
