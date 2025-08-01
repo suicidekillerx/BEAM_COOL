@@ -12,12 +12,26 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // Get the raw POST data
-$input = json_decode(file_get_contents('php://input'), true);
+$rawInput = file_get_contents('php://input');
+$input = json_decode($rawInput, true);
+
+// Debug logging
+error_log("save_about.php - Raw input: " . $rawInput);
+error_log("save_about.php - Parsed input: " . print_r($input, true));
 
 // Validate input
 if (!isset($input['key']) || !isset($input['value'])) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'Missing required fields']);
+    echo json_encode([
+        'success' => false, 
+        'message' => 'Missing required fields',
+        'debug' => [
+            'raw_input' => $rawInput,
+            'parsed_input' => $input,
+            'has_key' => isset($input['key']),
+            'has_value' => isset($input['value'])
+        ]
+    ]);
     exit;
 }
 

@@ -22,9 +22,12 @@ $aboutContent = getAllAboutContent(true); // Get editable content
     // Function to show status messages
     function showStatus(message, bgClass) {
         const statusDiv = document.getElementById('saveStatus');
-        if (!statusDiv) return;
+        if (!statusDiv) {
+            console.error('Save status div not found');
+            return;
+        }
         
-        statusDiv.className = `save-status ${bgClass}`;
+        statusDiv.className = `save-status ${bgClass} text-white`;
         statusDiv.textContent = message;
         statusDiv.style.display = 'block';
         
@@ -36,10 +39,17 @@ $aboutContent = getAllAboutContent(true); // Get editable content
     
     // Function to save all changes
     window.saveAllChanges = function() {
-        // Get all editable elements
-        const editableElements = document.querySelectorAll('[contenteditable="true"]');
+        // Get all editable elements (exclude image-related elements)
+        const editableElements = document.querySelectorAll('[contenteditable="true"]:not([data-content-key*="image"])');
         let savedCount = 0;
         let errorCount = 0;
+        
+        console.log('Found', editableElements.length, 'editable text elements');
+        
+        if (editableElements.length === 0) {
+            showStatus('No editable text content found', 'bg-yellow-500');
+            return;
+        }
         
         // Show saving status
         showStatus('Saving all changes...', 'bg-blue-500');
@@ -49,27 +59,35 @@ $aboutContent = getAllAboutContent(true); // Get editable content
             const contentKey = element.dataset.contentKey;
             const newContent = element.innerHTML;
             
+            console.log('Processing element with key:', contentKey, 'content:', newContent.substring(0, 50) + '...');
+            
             if (!contentKey) {
-                console.error('No data-content-key attribute found on element');
+                console.error('No data-content-key attribute found on element:', element);
                 errorCount++;
                 return Promise.resolve();
             }
             
+            const requestData = {
+                key: contentKey,
+                value: newContent
+            };
+            
+            console.log('Sending request to', apiEndpoint, 'with data:', requestData);
+            
             return fetch(apiEndpoint, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    key: contentKey,
-                    value: newContent
-                })
+                body: JSON.stringify(requestData)
             })
             .then(response => {
+                console.log('Response status:', response.status);
                 if (!response.ok) {
-                    throw new Error('Network response was not ok');
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 return response.json();
             })
             .then(data => {
+                console.log('Save response for', contentKey, ':', data);
                 if (data.success) {
                     savedCount++;
                 } else {
@@ -77,7 +95,7 @@ $aboutContent = getAllAboutContent(true); // Get editable content
                 }
             })
             .catch(error => {
-                console.error('Error saving content:', error);
+                console.error('Error saving content for', contentKey, ':', error);
                 errorCount++;
             });
         });
@@ -99,34 +117,41 @@ $aboutContent = getAllAboutContent(true); // Get editable content
     
     // Initialize event listeners when DOM is loaded
     document.addEventListener('DOMContentLoaded', function() {
-        // Save on blur (when user finishes editing)
-        document.querySelectorAll('[contenteditable="true"]').forEach(element => {
+        // Save on blur (when user finishes editing) - exclude image elements
+        document.querySelectorAll('[contenteditable="true"]:not([data-content-key*="image"])').forEach(element => {
             element.addEventListener('blur', function() {
                 const contentKey = this.dataset.contentKey;
                 const newContent = this.innerHTML;
                 
+                console.log('Blur event on element with key:', contentKey);
+                
                 if (!contentKey) {
-                    console.error('No data-content-key attribute found on element');
+                    console.error('No data-content-key attribute found on element:', this);
                     return;
                 }
                 
+                const requestData = {
+                    key: contentKey,
+                    value: newContent
+                };
+                
+                console.log('Blur - Sending request to', apiEndpoint, 'with data:', requestData);
                 showStatus('Saving...', 'bg-blue-500');
                 
                 fetch(apiEndpoint, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        key: contentKey,
-                        value: newContent
-                    })
+                    body: JSON.stringify(requestData)
                 })
                 .then(response => {
+                    console.log('Blur save response status:', response.status);
                     if (!response.ok) {
-                        throw new Error('Network response was not ok');
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                     return response.json();
                 })
                 .then(data => {
+                    console.log('Blur save response:', data);
                     if (data.success) {
                         showStatus('Changes saved successfully', 'bg-green-500');
                     } else {
@@ -134,7 +159,7 @@ $aboutContent = getAllAboutContent(true); // Get editable content
                     }
                 })
                 .catch(error => {
-                    console.error('Error:', error);
+                    console.error('Error saving on blur:', error);
                     showStatus('Error: ' + error.message, 'bg-red-500');
                 });
             });
@@ -160,21 +185,48 @@ $aboutContent = getAllAboutContent(true); // Get editable content
     </script>
     <style>
         [contenteditable="true"] {
-            outline: 2px dashed rgba(59, 130, 246, 0.3);
+            outline: 2px dashed rgba(59, 130, 246, 0.5);
             transition: all 0.2s;
             min-height: 40px;
             padding: 8px;
+            border-radius: 4px;
+            position: relative;
         }
 
         [contenteditable="true"]:hover {
-            outline-color: rgba(59, 130, 246, 0.6);
-            background: rgba(59, 130, 246, 0.05);
+            outline-color: rgba(59, 130, 246, 0.8);
+            background: rgba(59, 130, 246, 0.1);
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
         }
 
         [contenteditable="true"]:focus {
             outline-color: rgba(59, 130, 246, 1);
-            background: white;
+            background: rgba(255, 255, 255, 0.95);
             outline-style: solid;
+            box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+        }
+        
+        /* Add a subtle indicator for editable elements */
+        [contenteditable="true"]::before {
+            content: "✏️";
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: rgba(59, 130, 246, 0.9);
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        [contenteditable="true"]:hover::before {
+            opacity: 1;
         }
 
         .edit-toolbar {
@@ -192,9 +244,14 @@ $aboutContent = getAllAboutContent(true); // Get editable content
             position: fixed;
             bottom: 20px;
             left: 20px;
-            padding: 10px 20px;
-            border-radius: 5px;
+            padding: 12px 24px;
+            border-radius: 8px;
             display: none;
+            z-index: 1000;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            min-width: 200px;
+            text-align: center;
         }
         
         /* Mobile responsive styles */
@@ -254,6 +311,19 @@ $aboutContent = getAllAboutContent(true); // Get editable content
             
             <!-- Content Area -->
             <main class="content-area flex-1 overflow-y-auto bg-white">
+                
+                <!-- Edit Toolbar
+                <div class="edit-toolbar">
+                    <button onclick="saveAllChanges()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded mr-2">
+                        Save All Changes
+                    </button>
+                    <button onclick="location.reload()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">
+                        Reset
+                    </button>
+                </div>
+                
+               Save Status -->
+                <div id="saveStatus" class="save-status" style="display: none;"></div>
 
 <!-- Editable Hero Section -->
 <section class="relative min-h-screen flex items-center justify-center overflow-hidden">
@@ -644,23 +714,44 @@ $aboutContent = getAllAboutContent(true); // Get editable content
 function uploadImage(fileInput, contentKey, imgEl) {
     const file = fileInput.files[0];
     if (!file) return;
+    
+    console.log('Uploading image for content key:', contentKey);
+    
     const formData = new FormData();
     formData.append('image', file);
     formData.append('key', contentKey);
-    fetch('upload_image.php', {
+    
+    fetch('upload_about_image.php', {
         method: 'POST',
-        body: formData,
-        headers: {'X-Requested-With': 'XMLHttpRequest'}
+        body: formData
     })
     .then(response => response.json())
     .then(data => {
+        console.log('Image upload response:', data);
         if (data.success) {
-            if (imgEl) imgEl.src = '../' + data.filePath;
+            // Handle different types of image updates
+            if (contentKey === 'hero.background_image') {
+                // Update background image
+                const bgElement = document.querySelector('.parallax-bg');
+                if (bgElement) {
+                    bgElement.style.backgroundImage = `url('../${data.file_path}')`;
+                    console.log('Updated background image to:', '../' + data.file_path);
+                }
+            } else if (imgEl) {
+                // Update regular image
+                imgEl.src = '../' + data.file_path;
+                console.log('Updated image src to:', '../' + data.file_path);
+            }
+            showStatus('Image uploaded successfully', 'bg-green-500');
         } else {
-            alert(data.message || 'Image upload failed');
+            console.error('Image upload failed:', data.error);
+            showStatus('Image upload failed: ' + (data.error || 'Unknown error'), 'bg-red-500');
         }
     })
-    .catch(() => alert('Image upload failed'));
+    .catch(error => {
+        console.error('Image upload error:', error);
+        showStatus('Image upload failed', 'bg-red-500');
+    });
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -669,15 +760,23 @@ document.addEventListener('DOMContentLoaded', function() {
         const fileInput = form.querySelector('input[type="file"]');
         const button = form.querySelector('button[type="button"]');
         const contentKey = form.dataset.contentKey;
+        
+        console.log('Setting up image upload for content key:', contentKey);
+        
+        // Find the image element that should be updated
         let imgEl = null;
-        if (form.parentElement.querySelector('img[data-content-key]')) {
-            imgEl = form.parentElement.querySelector('img[data-content-key]');
+        const parentContainer = form.closest('.relative') || form.parentElement;
+        if (parentContainer) {
+            imgEl = parentContainer.querySelector('img');
+            console.log('Found image element:', imgEl);
         }
+        
         if (fileInput && button && contentKey) {
             button.addEventListener('click', function() {
                 fileInput.click();
             });
             fileInput.addEventListener('change', function() {
+                console.log('File selected for upload:', fileInput.files[0]?.name);
                 uploadImage(fileInput, contentKey, imgEl);
             });
         }

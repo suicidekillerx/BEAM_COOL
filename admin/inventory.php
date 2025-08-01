@@ -447,6 +447,7 @@ if (isset($_GET['success'])) {
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Stock Worth</th>
                                         <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     </tr>
                                 </thead>
@@ -529,7 +530,14 @@ if (isset($_GET['success'])) {
                                         <?php endif; ?>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <button class="text-indigo-600 hover:text-indigo-900 mr-3 update-stock-btn" data-product-id="<?php echo $product['id']; ?>" data-product-name="<?php echo htmlspecialchars($product['name']); ?>">
+                                        <?php 
+                                        $price = $product['sale_price'] ?: $product['price'];
+                                        $stockWorth = $price * $product['total_stock'];
+                                        echo formatPrice($stockWorth);
+                                        ?>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <button type="button" class="text-blue-600 hover:text-blue-900 update-stock-btn" data-product-id="<?php echo $product['id']; ?>" data-product-name="<?php echo htmlspecialchars($product['name']); ?>">
                                             Update Stock
                                         </button>
                                         <a href="products.php?edit=<?php echo $product['id']; ?>" class="text-gray-600 hover:text-gray-900">
