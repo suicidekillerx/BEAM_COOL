@@ -66,11 +66,14 @@ if ($api) {
         error_log("First Delivery API Response: " . json_encode($response));
         
         if ($response['http_code'] === 200 && !$response['data']['isError']) {
+            // The API returns data in response['data']['result']
+            $result = $response['data']['result'] ?? [];
+            
             // Try different possible response structures
-            $orders = $response['data']['Items'] ?? $response['data']['items'] ?? $response['data']['data'] ?? [];
-            $totalOrders = $response['data']['TotalCount'] ?? $response['data']['totalCount'] ?? $response['data']['total'] ?? 0;
-            $currentPageNum = $response['data']['CurrentPage'] ?? $response['data']['currentPage'] ?? $response['data']['page'] ?? 1;
-            $totalPages = $response['data']['TotalPages'] ?? $response['data']['totalPages'] ?? $response['data']['pages'] ?? 1;
+            $orders = $result['Items'] ?? $result['items'] ?? $result['data'] ?? [];
+            $totalOrders = $result['TotalCount'] ?? $result['totalCount'] ?? $result['total'] ?? 0;
+            $currentPageNum = $result['CurrentPage'] ?? $result['currentPage'] ?? $result['page'] ?? 1;
+            $totalPages = $result['TotalPages'] ?? $result['totalPages'] ?? $result['pages'] ?? 1;
             
             // Debug: Log the parsed data
             error_log("Parsed orders count: " . count($orders));

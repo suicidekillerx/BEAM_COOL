@@ -46,10 +46,11 @@ try {
         if (!isset($response['data']['isError']) || !$response['data']['isError']) {
             echo "<p style='color: green;'>✅ No API error</p>";
             
-            $orders = $response['data']['Items'] ?? [];
-            $totalOrders = $response['data']['TotalCount'] ?? 0;
-            $currentPage = $response['data']['CurrentPage'] ?? 1;
-            $totalPages = $response['data']['TotalPages'] ?? 1;
+            $result = $response['data']['result'] ?? [];
+            $orders = $result['Items'] ?? [];
+            $totalOrders = $result['TotalCount'] ?? 0;
+            $currentPage = $result['CurrentPage'] ?? 1;
+            $totalPages = $result['TotalPages'] ?? 1;
             
             echo "<h3>Parsed Data:</h3>";
             echo "<p><strong>Total Orders:</strong> " . $totalOrders . "</p>";
@@ -91,7 +92,8 @@ try {
     $response = $api->filterOrders($filterData);
     
     if ($response['http_code'] === 200 && !$response['data']['isError']) {
-        $orders = $response['data']['Items'] ?? [];
+        $result = $response['data']['result'] ?? [];
+        $orders = $result['Items'] ?? [];
         echo "<p style='color: green;'>✅ Found " . count($orders) . " orders with date range</p>";
     } else {
         echo "<p style='color: red;'>❌ Error with date range filter</p>";
