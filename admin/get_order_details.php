@@ -216,6 +216,10 @@ foreach ($orderItems as &$item) {
                 class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
             <i class="fas fa-edit mr-2"></i>Edit Order
         </button>
+        <button onclick="editOrderItems(<?php echo $order['id']; ?>)" 
+                class="flex-1 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors">
+            <i class="fas fa-shopping-cart mr-2"></i>Edit Items
+        </button>
         <button onclick="printInvoice('<?php echo $order['order_number']; ?>')" 
                 class="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
             <i class="fas fa-print mr-2"></i>Print Invoice

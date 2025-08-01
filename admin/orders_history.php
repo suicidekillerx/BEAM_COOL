@@ -35,14 +35,53 @@ if ($api) {
         $page = max(1, intval($_GET['page'] ?? 1));
         $limit = 20; // Items per page
         
-        // Prepare filter data
+        // Reverse page order: page 1 should show newest orders
+        // If we have 65 pages, page 1 should request page 65 from API
+        // We'll calculate this after getting total pages
+        
+        // First, get total pages to calculate reverse page order
+        $tempFilterData = [
+            'pagination' => [
+                'pageNumber' => 1,
+                'limit' => $limit
+            ]
+        ];
+        
+        if (!empty($barCode)) {
+            $tempFilterData['barCode'] = $barCode;
+        }
+        
+        if (!empty($dateFrom)) {
+            $tempFilterData['createdAtFrom'] = $dateFrom;
+        }
+        
+        if (!empty($dateTo)) {
+            $tempFilterData['createdAtTo'] = $dateTo;
+        }
+        
+        if (!empty($state)) {
+            $tempFilterData['state'] = intval($state);
+        }
+        
+        // Get total pages first
+        $tempResponse = $api->filterOrders($tempFilterData);
+        $totalPages = 1;
+        
+        if ($tempResponse['http_code'] === 200 && !$tempResponse['data']['isError']) {
+            $tempResult = $tempResponse['data']['result'] ?? [];
+            $totalPages = $tempResult['TotalPages'] ?? $tempResult['totalPages'] ?? $tempResult['pages'] ?? 1;
+        }
+        
+        // Calculate reverse page order
+        $apiPage = $totalPages - $page + 1;
+        $apiPage = max(1, $apiPage); // Ensure we don't go below page 1
+        
+        // Prepare filter data with reversed page
         $filterData = [
             'pagination' => [
-                'pageNumber' => $page,
+                'pageNumber' => $apiPage,
                 'limit' => $limit
-            ],
-            'sortBy' => 'createdAt',
-            'sortOrder' => 'desc' // Newest first
+            ]
         ];
         
         if (!empty($barCode)) {
@@ -61,7 +100,7 @@ if ($api) {
             $filterData['state'] = intval($state);
         }
         
-        // Fetch orders from API
+        // Fetch orders from API with reversed page
         $response = $api->filterOrders($filterData);
         
         // Debug: Log the response
@@ -74,8 +113,19 @@ if ($api) {
             // Try different possible response structures
             $orders = $result['Items'] ?? $result['items'] ?? $result['data'] ?? [];
             $totalOrders = $result['TotalCount'] ?? $result['totalCount'] ?? $result['total'] ?? 0;
-            $currentPageNum = $result['CurrentPage'] ?? $result['currentPage'] ?? $result['page'] ?? 1;
-            $totalPages = $result['TotalPages'] ?? $result['totalPages'] ?? $result['pages'] ?? 1;
+            $apiCurrentPage = $result['CurrentPage'] ?? $result['currentPage'] ?? $result['page'] ?? 1;
+            $apiTotalPages = $result['TotalPages'] ?? $result['totalPages'] ?? $result['pages'] ?? 1;
+            
+            // Convert back to our page numbering (newest first)
+            $currentPageNum = $apiTotalPages - $apiCurrentPage + 1;
+            $totalPages = $apiTotalPages;
+            
+            // Sort orders by creation date (newest first)
+            usort($orders, function($a, $b) {
+                $dateA = strtotime($a['createdAt'] ?? '1970-01-01');
+                $dateB = strtotime($b['createdAt'] ?? '1970-01-01');
+                return $dateB - $dateA; // Descending order
+            });
             
             // Debug: Log the parsed data
             error_log("Parsed orders count: " . count($orders));
@@ -301,36 +351,36 @@ if (isset($_POST['action']) && $_POST['action'] === 'check_status') {
                                                             <?= htmlspecialchars($order['barCode']) ?>
                                                         </div>
                                                     </td>
-                                                    <td class="px-6 py-4 whitespace-nowrap">
-                                                        <div class="text-sm text-gray-900">
-                                                            <?= htmlspecialchars($order['Client']['nom'] ?? 'N/A') ?>
-                                                        </div>
-                                                        <div class="text-sm text-gray-500">
-                                                            <?= htmlspecialchars($order['Client']['telephone'] ?? 'N/A') ?>
-                                                        </div>
-                                                    </td>
-                                                    <td class="px-6 py-4">
-                                                        <div class="text-sm text-gray-900">
-                                                            <?= htmlspecialchars($order['Client']['adresse'] ?? 'N/A') ?>
-                                                        </div>
-                                                        <div class="text-sm text-gray-500">
-                                                            <?= htmlspecialchars($order['Client']['ville'] ?? '') ?>, 
-                                                            <?= htmlspecialchars($order['Client']['gouvernerat'] ?? '') ?>
-                                                        </div>
-                                                    </td>
-                                                    <td class="px-6 py-4">
-                                                        <div class="text-sm text-gray-900">
-                                                            <?= htmlspecialchars($order['Product']['designation'] ?? 'N/A') ?>
-                                                        </div>
-                                                        <div class="text-sm text-gray-500">
-                                                            Qty: <?= htmlspecialchars($order['Product']['nombreArticle'] ?? '1') ?>
-                                                        </div>
-                                                    </td>
-                                                    <td class="px-6 py-4 whitespace-nowrap">
-                                                        <div class="text-sm font-medium text-gray-900">
-                                                            <?= number_format($order['Product']['prix'] ?? 0, 3) ?> TND
-                                                        </div>
-                                                    </td>
+                                                                                                         <td class="px-6 py-4 whitespace-nowrap">
+                                                         <div class="text-sm text-gray-900">
+                                                             <?= htmlspecialchars($order['Client']['name'] ?? 'N/A') ?>
+                                                         </div>
+                                                         <div class="text-sm text-gray-500">
+                                                             <?= htmlspecialchars($order['Client']['telephone'] ?? 'N/A') ?>
+                                                         </div>
+                                                     </td>
+                                                     <td class="px-6 py-4">
+                                                         <div class="text-sm text-gray-900">
+                                                             <?= htmlspecialchars($order['Client']['address'] ?? 'N/A') ?>
+                                                         </div>
+                                                         <div class="text-sm text-gray-500">
+                                                             <?= htmlspecialchars($order['Client']['city'] ?? '') ?>, 
+                                                             <?= htmlspecialchars($order['Client']['state'] ?? '') ?>
+                                                         </div>
+                                                     </td>
+                                                                                                         <td class="px-6 py-4">
+                                                         <div class="text-sm text-gray-900">
+                                                             <?= htmlspecialchars($order['Product']['designation'] ?? 'N/A') ?>
+                                                         </div>
+                                                         <div class="text-sm text-gray-500">
+                                                             Qty: <?= htmlspecialchars($order['Product']['itemNumber'] ?? '1') ?>
+                                                         </div>
+                                                     </td>
+                                                     <td class="px-6 py-4 whitespace-nowrap">
+                                                         <div class="text-sm font-medium text-gray-900">
+                                                             <?= number_format($order['Product']['price'] ?? 0, 3) ?> TND
+                                                         </div>
+                                                     </td>
                                                     <td class="px-6 py-4 whitespace-nowrap">
                                                         <span class="order-status status-<?= strtolower(str_replace(' ', '-', $order['state'] ?? '')) ?>">
                                                             <?= htmlspecialchars($order['state'] ?? 'Unknown') ?>
@@ -413,6 +463,55 @@ if (isset($_POST['action']) && $_POST['action'] === 'check_status') {
                             </div>
                         </div>
                     <?php endif; ?>
+                </div>
+            </main>
+        </div>
+    </div>
+    
+    <script>
+        function checkOrderStatus(barcode) {
+            if (confirm('Check status for barcode: ' + barcode + '?')) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.innerHTML = `
+                    <input type="hidden" name="action" value="check_status">
+                    <input type="hidden" name="barcode" value="${barcode}">
+                `;
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+        
+        // Mobile sidebar toggle
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebar = document.querySelector('.admin-sidebar');
+            const overlay = document.querySelector('.sidebar-overlay');
+            
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', function() {
+                    sidebar.classList.toggle('open');
+                    overlay.classList.toggle('open');
+                });
+            }
+            
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    sidebar.classList.remove('open');
+                    overlay.classList.remove('open');
+                });
+            }
+        });
+    </script>
+</body>
+</html>                                 </div>
+                                <div class="ml-3">
+                                    <h3 class="text-sm font-medium">API Token Not Configured</h3>
+                                    <p class="text-sm mt-1">Please configure your First Delivery API token in <a href="setting.php" class="underline">Admin Settings</a> to view orders history.</p>
+                                </div>
+                            </div>
+                        </div>
+                    
                 </div>
             </main>
         </div>

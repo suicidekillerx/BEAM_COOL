@@ -118,6 +118,98 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 break;
                 
+            case 'update_order_items':
+                $orderId = (int)$_POST['order_id'];
+                $items = $_POST['items'] ?? [];
+                $deletedItems = $_POST['deleted_items'] ?? [];
+                $newItems = $_POST['new_items'] ?? [];
+                
+                // Debug logging
+                error_log("Update order items - Order ID: " . $orderId);
+                error_log("Items to update: " . json_encode($items));
+                error_log("Items to delete: " . json_encode($deletedItems));
+                error_log("New items: " . json_encode($newItems));
+                
+                $pdo = getDBConnection();
+                
+                try {
+                    $pdo->beginTransaction();
+                    
+                    // Delete removed items
+                    if (!empty($deletedItems)) {
+                        $deleteStmt = $pdo->prepare("DELETE FROM order_items WHERE id = ? AND order_id = ?");
+                        foreach ($deletedItems as $itemId) {
+                            $deleteStmt->execute([$itemId, $orderId]);
+                        }
+                    }
+                    
+                    // Update existing items
+                    if (!empty($items)) {
+                        $updateStmt = $pdo->prepare("
+                            UPDATE order_items 
+                            SET quantity = ?, size = ?
+                            WHERE id = ? AND order_id = ?
+                        ");
+                        
+                        foreach ($items as $itemId => $itemData) {
+                            $quantity = (int)$itemData['quantity'];
+                            $size = $itemData['size'];
+                            
+                            $updateStmt->execute([$quantity, $size, $itemId, $orderId]);
+                        }
+                    }
+                    
+                    // Add new items
+                    if (!empty($newItems)) {
+                        $insertStmt = $pdo->prepare("
+                            INSERT INTO order_items (order_id, product_id, product_name, quantity, size, product_price, total_price, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+                        ");
+                        
+                        foreach ($newItems as $newItem) {
+                            $productId = (int)$newItem['product_id'];
+                            $quantity = (int)$newItem['quantity'];
+                            $size = $newItem['size'];
+                            $price = (float)$newItem['price'];
+                            $totalPrice = $quantity * $price;
+                            
+                            // Get product name
+                            $productStmt = $pdo->prepare("SELECT name FROM products WHERE id = ?");
+                            $productStmt->execute([$productId]);
+                            $productName = $productStmt->fetchColumn() ?: 'Unknown Product';
+                            
+                            $insertStmt->execute([$orderId, $productId, $productName, $quantity, $size, $price, $totalPrice]);
+                        }
+                    }
+                    
+                    // Recalculate order total
+                    $totalStmt = $pdo->prepare("
+                        SELECT SUM(total_price) as new_total 
+                        FROM order_items 
+                        WHERE order_id = ?
+                    ");
+                    $totalStmt->execute([$orderId]);
+                    $newTotal = $totalStmt->fetchColumn();
+                    
+                    // Update order total
+                    $orderUpdateStmt = $pdo->prepare("
+                        UPDATE orders 
+                        SET total = ?, subtotal = ?
+                        WHERE id = ?
+                    ");
+                    $orderUpdateStmt->execute([$newTotal, $newTotal, $orderId]);
+                    
+                    $pdo->commit();
+                    $successMessage = "Order items updated successfully! Total updated to " . formatPrice($newTotal);
+                    error_log("Order items update successful - Total: " . $newTotal);
+                    
+                } catch (Exception $e) {
+                    $pdo->rollBack();
+                    $errorMessage = "Error updating order items: " . $e->getMessage();
+                    error_log("Order items update failed: " . $e->getMessage());
+                }
+                break;
+                
             case 'bulk_update':
                 $orderIds = $_POST['order_ids'] ?? [];
                 $bulkStatus = $_POST['bulk_status'];
@@ -856,6 +948,11 @@ $statusCounts = $statusCountsStmt->fetchAll();
                                                             class="text-green-600 hover:text-green-800 transition-colors">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
+                                                    <button onclick="editOrderItems(<?php echo $order['id']; ?>)" 
+                                                            class="text-purple-600 hover:text-purple-800 transition-colors"
+                                                            title="Edit Order Items">
+                                                        <i class="fas fa-shopping-cart"></i>
+                                                    </button>
                                                     <button onclick="printInvoice('<?php echo $order['order_number']; ?>')" 
                                                             class="text-purple-600 hover:text-purple-800 transition-colors">
                                                         <i class="fas fa-print"></i>
@@ -962,6 +1059,11 @@ $statusCounts = $statusCountsStmt->fetchAll();
                                                 class="text-green-600 hover:text-green-800 transition-colors p-2">
                                             <i class="fas fa-edit"></i>
                                         </button>
+                                        <button onclick="editOrderItems(<?php echo $order['id']; ?>)" 
+                                                class="text-purple-600 hover:text-purple-800 transition-colors p-2"
+                                                title="Edit Order Items">
+                                            <i class="fas fa-shopping-cart"></i>
+                                        </button>
                                         <button onclick="printInvoice('<?php echo $order['order_number']; ?>')" 
                                                 class="text-purple-600 hover:text-purple-800 transition-colors p-2">
                                             <i class="fas fa-print"></i>
@@ -1063,6 +1165,104 @@ $statusCounts = $statusCountsStmt->fetchAll();
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Edit Order Items Modal -->
+    <div id="editOrderItemsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-screen overflow-y-auto">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xl font-bold text-gray-900">Edit Order Items</h3>
+                        <button onclick="closeEditItemsModal()" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+                <form id="editOrderItemsForm" method="POST" class="p-6">
+                    <input type="hidden" name="action" value="update_order_items">
+                    <input type="hidden" name="order_id" id="editItemsOrderId">
+                    
+                    <!-- Add Item Section -->
+                    <div class="mb-6 p-4 bg-blue-50 rounded-lg">
+                        <h4 class="text-lg font-semibold text-gray-900 mb-3">Add New Item</h4>
+                        <div class="flex space-x-4">
+                            <div class="flex-1" style="position:relative;">
+                                <input type="text" id="productSearch" placeholder="Search for products..." 
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent">
+                                <div id="searchResults" 
+                                     style="position:absolute; left:0; top:100%; width:100%; background:#fff; border:1px solid #ccc; z-index:9999; box-shadow:0 2px 8px rgba(0,0,0,0.08); display:none;">
+                                </div>
+                            </div>
+                           
+                        </div>
+                    </div>
+                    
+                    <div id="orderItemsContainer" class="space-y-4">
+                        <!-- Order items will be loaded here -->
+                    </div>
+                    
+                    <div class="flex items-center justify-between mt-6 pt-4 border-t border-gray-200">
+                        <div class="text-lg font-semibold text-gray-900">
+                            Total: <span id="orderItemsTotal">$0.00</span>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <button type="button" onclick="closeEditItemsModal()" class="px-4 py-2 text-gray-600 hover:text-black transition-colors">
+                                Cancel
+                            </button>
+                            <button type="submit" class="bg-black text-white px-6 py-2 rounded-lg hover:bg-gray-800 transition-colors">
+                                Update Items
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add Item Modal -->
+    <div id="addItemModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-2xl shadow-xl max-w-md w-full">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xl font-bold text-gray-900">Add Item to Order</h3>
+                        <button onclick="closeAddItemModal()" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <div id="selectedProductInfo" class="mb-4 hidden">
+                        <!-- Selected product info will be shown here -->
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Size</label>
+                            <select id="selectedSize" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent">
+                                <option value="">Select Size</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                            <input type="number" id="selectedQuantity" value="1" min="1" max="99"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent">
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-end space-x-4 mt-6">
+                        <button type="button" onclick="closeAddItemModal()" class="px-4 py-2 text-gray-600 hover:text-black transition-colors">
+                            Cancel
+                        </button>
+                        <button type="button" onclick="addItemToOrder()" class="bg-black text-white px-6 py-2 rounded-lg hover:bg-gray-800 transition-colors">
+                            Add to Order
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1200,6 +1400,398 @@ $statusCounts = $statusCountsStmt->fetchAll();
         const trackingNumber = prefix + timestamp + random;
         
         document.getElementById('editTrackingNumber').value = trackingNumber;
+    }
+    
+    // Edit order items functionality
+    function editOrderItems(orderId) {
+        const modal = document.getElementById('editOrderItemsModal');
+        const container = document.getElementById('orderItemsContainer');
+        
+        if (!modal || !container) {
+            console.error('Modal or container elements not found');
+            alert('Error: Modal elements not found. Please refresh the page and try again.');
+            return;
+        }
+        
+        // Show loading
+        container.innerHTML = '<div class="text-center py-8"><i class="fas fa-spinner fa-spin text-2xl text-gray-400"></i></div>';
+        modal.classList.remove('hidden');
+        
+        // Load order items
+        fetch(`get_order_items.php?id=${orderId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const orderIdInput = document.getElementById('editItemsOrderId');
+                    if (orderIdInput) {
+                        orderIdInput.value = orderId;
+                    }
+                    renderOrderItems(data.items);
+                    updateOrderItemsTotal();
+                } else {
+                    container.innerHTML = '<div class="text-center py-8 text-red-600">Error loading order items: ' + (data.message || 'Unknown error') + '</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading order items:', error);
+                container.innerHTML = '<div class="text-center py-8 text-red-600">Error loading order items: ' + error.message + '</div>';
+            });
+    }
+    
+    function renderOrderItems(items) {
+        const container = document.getElementById('orderItemsContainer');
+        if (!container) {
+            console.error('Order items container not found');
+            return;
+        }
+        
+        let html = '';
+        
+        items.forEach((item, index) => {
+            html += `
+                <div class="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg" data-item-id="${item.id}">
+                    <img src="${item.image_path}" alt="${item.product_name}" class="w-16 h-16 object-cover rounded-lg">
+                    <div class="flex-1">
+                        <h5 class="font-semibold text-gray-900">${item.product_name}</h5>
+                        <p class="text-sm text-gray-600">Color: ${item.color || 'N/A'}</p>
+                        <p class="text-sm text-gray-600">Price: $${parseFloat(item.product_price).toFixed(2)}</p>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Size</label>
+                            <select name="items[${item.id}][size]" 
+                                    class="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent">
+                                <option value="XS" ${item.size === 'XS' ? 'selected' : ''}>XS</option>
+                                <option value="S" ${item.size === 'S' ? 'selected' : ''}>S</option>
+                                <option value="M" ${item.size === 'M' ? 'selected' : ''}>M</option>
+                                <option value="L" ${item.size === 'L' ? 'selected' : ''}>L</option>
+                                <option value="XL" ${item.size === 'XL' ? 'selected' : ''}>XL</option>
+                                <option value="XXL" ${item.size === 'XXL' ? 'selected' : ''}>XXL</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                            <input type="number" name="items[${item.id}][quantity]" 
+                                   value="${item.quantity}" min="1" max="99"
+                                   class="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+                                   onchange="updateItemTotal(${item.id})">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Total</label>
+                            <div class="w-24 px-3 py-2 bg-gray-100 rounded-lg text-sm font-medium text-gray-900">
+                                $${(item.quantity * parseFloat(item.product_price)).toFixed(2)}
+                            </div>
+                        </div>
+                        <div>
+                            <button type="button" onclick="removeOrderItem(${item.id})" 
+                                    class="text-red-600 hover:text-red-800 transition-colors p-2">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+    }
+    
+    function updateItemTotal(itemId) {
+        const itemContainer = document.querySelector(`[data-item-id="${itemId}"]`);
+        if (!itemContainer) {
+            console.error('Item container not found for ID:', itemId);
+            return;
+        }
+        
+        const quantityInput = itemContainer.querySelector('input[name*="[quantity]"]');
+        const totalDiv = itemContainer.querySelector('.bg-gray-100');
+        const priceElement = itemContainer.querySelector('p:last-child');
+        
+        if (!quantityInput || !totalDiv || !priceElement) {
+            console.error('Required elements not found in item container');
+            return;
+        }
+        
+        const quantity = parseInt(quantityInput.value) || 0;
+        const price = parseFloat(priceElement.textContent.replace('Price: $', '')) || 0;
+        const total = quantity * price;
+        
+        totalDiv.textContent = `$${total.toFixed(2)}`;
+        updateOrderItemsTotal();
+    }
+    
+    function removeOrderItem(itemId) {
+        if (confirm('Are you sure you want to remove this item from the order?')) {
+            const itemContainer = document.querySelector(`[data-item-id="${itemId}"]`);
+            if (!itemContainer) {
+                console.error('Item container not found for removal:', itemId);
+                return;
+            }
+            itemContainer.remove();
+            
+            // Add to deleted items hidden input
+            const form = document.getElementById('editOrderItemsForm');
+            if (!form) {
+                console.error('Edit order items form not found');
+                return;
+            }
+            
+            let deletedInput = document.querySelector('input[name="deleted_items[]"]');
+            if (!deletedInput) {
+                deletedInput = document.createElement('input');
+                deletedInput.type = 'hidden';
+                deletedInput.name = 'deleted_items[]';
+                form.appendChild(deletedInput);
+            }
+            
+            const deletedItems = document.querySelectorAll('input[name="deleted_items[]"]');
+            const lastDeletedInput = deletedItems[deletedItems.length - 1];
+            lastDeletedInput.value = itemId;
+            
+            updateOrderItemsTotal();
+        }
+    }
+    
+    function updateOrderItemsTotal() {
+        const itemContainers = document.querySelectorAll('[data-item-id]');
+        let total = 0;
+        
+        itemContainers.forEach(container => {
+            const quantityInput = container.querySelector('input[name*="[quantity]"]');
+            const priceElement = container.querySelector('p:last-child');
+            
+            const quantity = parseInt(quantityInput?.value) || 0;
+            const price = parseFloat(priceElement?.textContent.replace('Price: $', '')) || 0;
+            total += quantity * price;
+        });
+        
+        const totalElement = document.getElementById('orderItemsTotal');
+        if (totalElement) {
+            totalElement.textContent = `$${total.toFixed(2)}`;
+        }
+    }
+    
+    function closeEditItemsModal() {
+        document.getElementById('editOrderItemsModal').classList.add('hidden');
+    }
+    
+    // Form submission handler
+    document.addEventListener('DOMContentLoaded', function() {
+        const editOrderItemsForm = document.getElementById('editOrderItemsForm');
+        if (editOrderItemsForm) {
+            editOrderItemsForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Debug: Log form data
+                const formData = new FormData(this);
+                console.log('Form data:');
+                for (let [key, value] of formData.entries()) {
+                    console.log(key + ': ' + value);
+                }
+                
+                // Submit the form
+                fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.text())
+                .then(html => {
+                    console.log('Response received');
+                    // Show success message
+                    alert('Order items updated successfully!');
+                    // Reload the page to show updated data
+                    window.location.reload();
+                })
+                .catch(error => {
+                    console.error('Form submission error:', error);
+                    alert('Error updating order items. Please try again.');
+                });
+            });
+        }
+    });
+    
+    // Product search functionality
+    let searchTimeout;
+    let selectedProduct = null;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('productSearch');
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                const query = this.value.trim();
+                
+                if (query.length < 2) {
+                    document.getElementById('searchResults').classList.add('hidden');
+                    return;
+                }
+                
+                searchTimeout = setTimeout(() => {
+                    searchProducts(query);
+                }, 300);
+            });
+        }
+    });
+    
+    function searchProducts(query) {
+        fetch(`search_products.php?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    displaySearchResults(data.products);
+                } else {
+                    console.error('Search error:', data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Search error:', error);
+            });
+    }
+    
+    function displaySearchResults(products) {
+        const resultsContainer = document.getElementById('searchResults');
+        if (products.length === 0) {
+            resultsContainer.innerHTML = '<p class="text-gray-500 p-2">No products found</p>';
+            resultsContainer.style.display = 'block';
+            resultsContainer.classList.remove('hidden');
+            return;
+        }
+        let html = '';
+        products.forEach(product => {
+            html += `
+                <div class="flex items-center space-x-3 p-2 hover:bg-gray-100 rounded cursor-pointer" 
+                     onclick="selectProduct(${JSON.stringify(product).replace(/"/g, '&quot;')})">
+                    <img src="${product.image_path}" alt="${product.name}" class="w-12 h-12 object-cover rounded">
+                    <div class="flex-1">
+                        <h5 class="font-medium text-gray-900">${product.name}</h5>
+                        <p class="text-sm text-gray-600">$${parseFloat(product.price).toFixed(2)}</p>
+                    </div>
+                </div>
+            `;
+        });
+        resultsContainer.innerHTML = html;
+        resultsContainer.style.display = 'block';
+        resultsContainer.classList.remove('hidden');
+    }
+    
+    function selectProduct(product) {
+        selectedProduct = product;
+        document.getElementById('searchResults').classList.add('hidden');
+        document.getElementById('productSearch').value = product.name;
+        showAddItemForm();
+    }
+    
+    function showAddItemForm() {
+        if (!selectedProduct) {
+            alert('Please search and select a product first');
+            return;
+        }
+        
+        // Display selected product info
+        const productInfo = document.getElementById('selectedProductInfo');
+        productInfo.innerHTML = `
+            <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded">
+                <img src="${selectedProduct.image_path}" alt="${selectedProduct.name}" class="w-16 h-16 object-cover rounded">
+                <div>
+                    <h5 class="font-semibold text-gray-900">${selectedProduct.name}</h5>
+                    <p class="text-sm text-gray-600">$${parseFloat(selectedProduct.price).toFixed(2)}</p>
+                </div>
+            </div>
+        `;
+        productInfo.classList.remove('hidden');
+        
+        // Populate size options
+        const sizeSelect = document.getElementById('selectedSize');
+        sizeSelect.innerHTML = '<option value="">Select Size</option>';
+        
+        if (selectedProduct.available_sizes && selectedProduct.available_sizes.length > 0) {
+            selectedProduct.available_sizes.forEach(size => {
+                sizeSelect.innerHTML += `<option value="${size}">${size}</option>`;
+            });
+        } else {
+            // Default sizes if none available
+            ['XS', 'S', 'M', 'L', 'XL', 'XXL'].forEach(size => {
+                sizeSelect.innerHTML += `<option value="${size}">${size}</option>`;
+            });
+        }
+        
+        document.getElementById('addItemModal').classList.remove('hidden');
+    }
+    
+    function closeAddItemModal() {
+        document.getElementById('addItemModal').classList.add('hidden');
+        selectedProduct = null;
+        document.getElementById('selectedProductInfo').classList.add('hidden');
+        document.getElementById('productSearch').value = '';
+    }
+    
+    function addItemToOrder() {
+        const size = document.getElementById('selectedSize').value;
+        const quantity = parseInt(document.getElementById('selectedQuantity').value) || 1;
+        
+        if (!size) {
+            alert('Please select a size');
+            return;
+        }
+        
+        if (!selectedProduct) {
+            alert('No product selected');
+            return;
+        }
+        
+        // Create new item HTML
+        const newItemId = 'new_' + Date.now();
+        const container = document.getElementById('orderItemsContainer');
+        const newItemHtml = `
+            <div class="flex items-center space-x-4 p-4 bg-green-50 rounded-lg border-2 border-green-200" data-item-id="${newItemId}">
+                <img src="${selectedProduct.image_path}" alt="${selectedProduct.name}" class="w-16 h-16 object-cover rounded-lg">
+                <div class="flex-1">
+                    <h5 class="font-semibold text-gray-900">${selectedProduct.name}</h5>
+                    <p class="text-sm text-gray-600">Color: ${selectedProduct.color || 'N/A'}</p>
+                    <p class="text-sm text-gray-600">Price: $${parseFloat(selectedProduct.price).toFixed(2)}</p>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Size</label>
+                        <select name="new_items[${newItemId}][size]" 
+                                class="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent">
+                            <option value="XS" ${size === 'XS' ? 'selected' : ''}>XS</option>
+                            <option value="S" ${size === 'S' ? 'selected' : ''}>S</option>
+                            <option value="M" ${size === 'M' ? 'selected' : ''}>M</option>
+                            <option value="L" ${size === 'L' ? 'selected' : ''}>L</option>
+                            <option value="XL" ${size === 'XL' ? 'selected' : ''}>XL</option>
+                            <option value="XXL" ${size === 'XXL' ? 'selected' : ''}>XXL</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                        <input type="number" name="new_items[${newItemId}][quantity]" 
+                               value="${quantity}" min="1" max="99"
+                               class="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+                               onchange="updateItemTotal('${newItemId}')">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Total</label>
+                        <div class="w-24 px-3 py-2 bg-gray-100 rounded-lg text-sm font-medium text-gray-900">
+                            $${(quantity * parseFloat(selectedProduct.price)).toFixed(2)}
+                        </div>
+                    </div>
+                    <div>
+                        <button type="button" onclick="removeOrderItem('${newItemId}')" 
+                                class="text-red-600 hover:text-red-800 transition-colors p-2">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <input type="hidden" name="new_items[${newItemId}][product_id]" value="${selectedProduct.id}">
+                <input type="hidden" name="new_items[${newItemId}][price]" value="${selectedProduct.price}">
+            </div>
+        `;
+        
+        container.insertAdjacentHTML('beforeend', newItemHtml);
+        
+        closeAddItemModal();
+        updateOrderItemsTotal();
     }
     
     // Print invoice functionality
@@ -1374,6 +1966,15 @@ $statusCounts = $statusCountsStmt->fetchAll();
             setTimeout(() => successMessage.remove(), 500);
         }
     }, 3000);
+    
+    document.addEventListener('click', function(e) {
+        const searchInput = document.getElementById('productSearch');
+        const resultsContainer = document.getElementById('searchResults');
+        if (resultsContainer && !searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
+            resultsContainer.style.display = 'none';
+            resultsContainer.classList.add('hidden');
+        }
+    });
     </script>
 </body>
 </html> 

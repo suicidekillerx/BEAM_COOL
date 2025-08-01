@@ -16,10 +16,7 @@ $siteSettings = [
     'contact_phone' => ['label' => 'Contact Phone', 'type' => 'tel', 'description' => 'Primary contact phone number'],
     'address' => ['label' => 'Business Address', 'type' => 'textarea', 'description' => 'Business address for contact information'],
     'currency' => ['label' => 'Currency', 'type' => 'text', 'default' => 'TND', 'description' => 'Default currency for the store'],
-    'auto_open_cart' => ['label' => 'Auto Open Cart', 'type' => 'checkbox', 'description' => 'Automatically open cart when items are added'],
-    'maintenance_mode' => ['label' => 'Maintenance Mode', 'type' => 'checkbox', 'description' => 'Enable maintenance mode to restrict access'],
-    'secret_collection' => ['label' => 'Secret Collection', 'type' => 'checkbox', 'description' => 'Enable secret collection feature in header'],
-    'first_delivery_token' => ['label' => 'First Delivery API Token', 'type' => 'password', 'description' => 'API token for First Delivery Group integration']
+    'maintenance_mode' => ['label' => 'Maintenance Mode', 'type' => 'checkbox', 'description' => 'Enable maintenance mode to restrict access']
 ];
 
 // Get existing settings
@@ -272,63 +269,15 @@ foreach ($site_settings as $setting) {
                 </svg>
                 System Settings
             </h3>
-            <div class="space-y-4">
-                <div class="form-group">
-                    <div class="flex items-center">
-                        <input type="hidden" name="auto_open_cart" value="0">
-                        <input type="checkbox" name="auto_open_cart" value="1" 
-                               class="h-4 w-4 text-black focus:ring-black border-gray-300 rounded" 
-                               <?= !empty($settings['auto_open_cart']) ? 'checked' : '' ?>>
-                        <label class="ml-2 block text-sm text-gray-700">Auto Open Cart</label>
-                    </div>
-                    <p class="text-xs text-gray-500 mt-1">Automatically open cart when items are added</p>
+            <div class="form-group">
+                <div class="flex items-center">
+                    <input type="hidden" name="maintenance_mode" value="0">
+                    <input type="checkbox" name="maintenance_mode" value="1" 
+                           class="h-4 w-4 text-black focus:ring-black border-gray-300 rounded" 
+                           <?= !empty($settings['maintenance_mode']) ? 'checked' : '' ?>>
+                    <label class="ml-2 block text-sm text-gray-700">Maintenance Mode</label>
                 </div>
-                <div class="form-group">
-                    <div class="flex items-center">
-                        <input type="hidden" name="maintenance_mode" value="0">
-                        <input type="checkbox" name="maintenance_mode" value="1" 
-                               class="h-4 w-4 text-black focus:ring-black border-gray-300 rounded" 
-                               <?= !empty($settings['maintenance_mode']) ? 'checked' : '' ?>>
-                        <label class="ml-2 block text-sm text-gray-700">Maintenance Mode</label>
-                    </div>
-                    <p class="text-xs text-gray-500 mt-1">Enable maintenance mode to restrict access</p>
-                </div>
-                
-                <div class="form-group">
-                    <div class="flex items-center">
-                        <input type="hidden" name="secret_collection" value="0">
-                        <input type="checkbox" name="secret_collection" value="1" 
-                               class="h-4 w-4 text-black focus:ring-black border-gray-300 rounded" 
-                               <?= !empty($settings['secret_collection']) ? 'checked' : '' ?>>
-                        <label class="ml-2 block text-sm text-gray-700">Secret Collection</label>
-                    </div>
-                    <p class="text-xs text-gray-500 mt-1">Enable secret collection feature in header</p>
-                </div>
-                
-                <div class="form-group">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Secret Collection Session Duration</label>
-                    <select name="secret_session_duration" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent">
-                        <option value="1" <?php echo getSiteSetting('secret_session_duration', '24') == '1' ? 'selected' : ''; ?>>1 Hour</option>
-                        <option value="2" <?php echo getSiteSetting('secret_session_duration', '24') == '2' ? 'selected' : ''; ?>>2 Hours</option>
-                        <option value="6" <?php echo getSiteSetting('secret_session_duration', '24') == '6' ? 'selected' : ''; ?>>6 Hours</option>
-                        <option value="12" <?php echo getSiteSetting('secret_session_duration', '24') == '12' ? 'selected' : ''; ?>>12 Hours</option>
-                        <option value="24" <?php echo getSiteSetting('secret_session_duration', '24') == '24' ? 'selected' : ''; ?>>24 Hours (Default)</option>
-                        <option value="48" <?php echo getSiteSetting('secret_session_duration', '24') == '48' ? 'selected' : ''; ?>>48 Hours</option>
-                        <option value="168" <?php echo getSiteSetting('secret_session_duration', '24') == '168' ? 'selected' : ''; ?>>7 Days</option>
-                    </select>
-                    <p class="text-xs text-gray-500 mt-1">How long users can access the secret collection after entering a password</p>
-                </div>
-                
-                <div class="form-group">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">First Delivery API Token</label>
-                    <input type="password" name="first_delivery_token" value="<?= htmlspecialchars($settings['first_delivery_token'] ?? '') ?>" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-black"
-                           placeholder="Enter your First Delivery Group API token">
-                    <p class="text-xs text-gray-500 mt-1">API token for First Delivery Group integration</p>
-                </div>
-                
-                <!-- Password Protection Options (shown when maintenance mode is enabled) -->
-
+                <p class="text-xs text-gray-500 mt-1">Enable maintenance mode to restrict access</p>
             </div>
         </div>
         
@@ -359,8 +308,6 @@ document.getElementById('saveSettings').addEventListener('click', function() {
             data[key] = value;
         }
     }
-    
-    
     
     // Send data to server
     fetch('setting.php', {
@@ -525,22 +472,4 @@ function removeLogo(logoType) {
         autoSaveLogo(logoType, '');
     }
 }
-
-// Maintenance mode functionality
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Maintenance mode JavaScript loaded');
-    
-    const maintenanceModeCheckbox = document.querySelector('input[name="maintenance_mode"]');
-    
-    console.log('Maintenance mode checkbox found:', !!maintenanceModeCheckbox);
-    
-
-    
-
-});
-
-
-
-
-
 </script>
