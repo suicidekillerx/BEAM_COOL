@@ -907,13 +907,19 @@ $statusCounts = $statusCountsStmt->fetchAll();
                                             <td class="px-6 py-4">
                                                 <div>
                                                     <div class="text-sm font-medium text-gray-900">
-                                                        <?php echo htmlspecialchars($order['customer_name']); ?>
+                                                        <span class="search-customer cursor-pointer text-blue-700 hover:underline" data-search="<?php echo htmlspecialchars($order['customer_name']); ?>">
+                                                            <?php echo htmlspecialchars($order['customer_name']); ?>
+                                                        </span>
                                                     </div>
                                                     <div class="text-sm text-gray-500">
-                                                        <?php echo htmlspecialchars($order['customer_email']); ?>
+                                                        <span class="search-customer cursor-pointer text-blue-700 hover:underline" data-search="<?php echo htmlspecialchars($order['customer_email']); ?>">
+                                                            <?php echo htmlspecialchars($order['customer_email']); ?>
+                                                        </span>
                                                     </div>
                                                     <div class="text-sm text-gray-500">
-                                                        <?php echo htmlspecialchars($order['customer_phone']); ?>
+                                                        <span class="search-customer cursor-pointer text-blue-700 hover:underline" data-search="<?php echo htmlspecialchars($order['customer_phone']); ?>">
+                                                            <?php echo htmlspecialchars($order['customer_phone']); ?>
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </td>
@@ -1974,6 +1980,26 @@ $statusCounts = $statusCountsStmt->fetchAll();
             resultsContainer.style.display = 'none';
             resultsContainer.classList.add('hidden');
         }
+    });
+    </script>
+    <script>
+    // Fast search by clicking customer name/email/phone
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.search-customer').forEach(function(el) {
+            el.addEventListener('click', function(e) {
+                e.preventDefault();
+                const value = this.getAttribute('data-search');
+                const searchInput = document.querySelector('input[name="search"]');
+                if (searchInput) {
+                    searchInput.value = value;
+                    // Find the filter form and submit it
+                    const filterForm = searchInput.closest('form');
+                    if (filterForm) {
+                        filterForm.submit();
+                    }
+                }
+            });
+        });
     });
     </script>
 </body>
