@@ -40,7 +40,9 @@ if ($api) {
             'pagination' => [
                 'pageNumber' => $page,
                 'limit' => $limit
-            ]
+            ],
+            'sortBy' => 'createdAt',
+            'sortOrder' => 'desc' // Newest first
         ];
         
         if (!empty($barCode)) {
