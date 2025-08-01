@@ -1,0 +1,230 @@
+/* Admin Panel Styles */
+.admin-sidebar {
+    background: linear-gradient(180deg, #000000 0%, #1a1a1a 100%);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.1);
+}
+
+.menu-item {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.menu-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transition: left 0.5s;
+}
+
+.menu-item:hover::before {
+    left: 100%;
+}
+
+.menu-item.active {
+    background: rgba(255, 255, 255, 0.1);
+    border-left: 4px solid #ffffff;
+}
+
+.menu-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateX(5px);
+}
+
+.menu-icon {
+    transition: all 0.3s ease;
+}
+
+.menu-item:hover .menu-icon {
+    transform: scale(1.1);
+}
+
+.stats-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border: 1px solid #e5e7eb;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stats-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+.admin-header {
+    background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+}
+
+.notification-badge {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.sidebar-toggle {
+    transition: all 0.3s ease;
+}
+
+.sidebar-toggle:hover {
+    transform: rotate(180deg);
+}
+
+.content-area {
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+}
+
+.category-card {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.category-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.modal {
+    transition: all 0.3s ease;
+}
+
+.modal.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.modal-content {
+    transform: scale(0.7);
+    transition: all 0.3s ease;
+}
+
+.modal.show .modal-content {
+    transform: scale(1);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .admin-sidebar {
+        position: fixed;
+        left: -100%;
+        z-index: 50;
+    }
+    
+    .admin-sidebar.show {
+        left: 0;
+    }
+    
+    .modal-content {
+        margin: 1rem;
+        max-width: calc(100% - 2rem);
+    }
+}
+
+/* Form Styles */
+.form-input {
+    transition: all 0.3s ease;
+}
+
+.form-input:focus {
+    border-color: #000000;
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Button Styles */
+.btn-primary {
+    background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.btn-secondary {
+    background: #f3f4f6;
+    transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+    background: #e5e7eb;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    transition: all 0.3s ease;
+}
+
+.btn-danger:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+/* Admin Logo Glitch Animation */
+.admin-sidebar .logo-glitch-stack {
+    position: relative;
+    width: 4rem;
+    height: 4rem;
+    display: inline-block;
+}
+
+.admin-sidebar .glitch-logo {
+    position: absolute;
+    left: 0; top: 0;
+    width: 100%; height: 100%;
+    opacity: 0;
+    animation: admin-glitch-white 2.5s infinite linear;
+}
+
+.admin-sidebar .glitch-logo-1 {
+    animation-delay: 0s;
+}
+.admin-sidebar .glitch-logo-2 {
+    animation-delay: 1.25s;
+}
+
+@keyframes admin-glitch-white {
+    0%, 15%, 24% {
+        transform: translate(0);
+        opacity: 1;
+        filter: brightness(0) invert(1);
+        clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+    }
+    5% {
+        transform: translate(-2px, 2px) skewX(6deg);
+        filter: drop-shadow(0 0 3px #f0f) drop-shadow(0 0 4px #0ff) brightness(0) invert(1);
+    }
+    10% {
+        transform: translate(2px, -2px) skewY(-6deg);
+        filter: drop-shadow(0 0 3px #0ff) drop-shadow(0 0 4px #f0f) blur(0.5px) brightness(0) invert(1);
+    }
+    20% {
+        transform: translate(4px, -2px) skewX(-10deg);
+        clip-path: polygon(0 10%, 100% 10%, 100% 50%, 0 50%);
+        opacity: 0.8;
+        filter: brightness(0) invert(1);
+    }
+    22% {
+        clip-path: polygon(0 60%, 100% 60%, 100% 90%, 0 90%);
+        filter: brightness(0) invert(1);
+    }
+    49% {
+        opacity: 1;
+        transform: scale(1.02);
+        filter: brightness(0) invert(1);
+    }
+    50% {
+        opacity: 0;
+        transform: translate(5px, 2px) scale(1.1);
+        filter: brightness(0) invert(1);
+    }
+    51%, 100% {
+        opacity: 0;
+        filter: brightness(0) invert(1);
+    }
+} 
