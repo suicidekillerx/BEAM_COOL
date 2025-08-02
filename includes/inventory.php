@@ -4,19 +4,6 @@
  */
 
 /**
- * Get order number by order ID
- * @param int $orderId The order ID
- * @return string The order number
- */
-function getOrderNumber($orderId) {
-    $pdo = getDBConnection();
-    $stmt = $pdo->prepare("SELECT order_number FROM orders WHERE id = ?");
-    $stmt->execute([$orderId]);
-    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-    return $result ? $result['order_number'] : 'N/A';
-}
-
-/**
  * Update inventory when an order is confirmed
  * @param int $orderId The ID of the order
  * @return bool True on success, false on failure
@@ -117,6 +104,9 @@ function restoreInventoryOnOrderCancel($orderId) {
             throw new Exception("Cannot cancel order with status: {$order['order_status']}. Only pending, confirmed, or processing orders can be cancelled.");
         }
         
+        // Only restore inventory if the order was previously 'processing'
+        $shouldRestoreInventory = ($order['order_status'] === 'processing');
+        
         // Get all items in the order
         $stmt = $pdo->prepare("
             SELECT oi.product_id, oi.size, oi.quantity 
@@ -126,22 +116,24 @@ function restoreInventoryOnOrderCancel($orderId) {
         $stmt->execute([$orderId]);
         $orderItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        // Restore inventory for each item
-        $updateStmt = $pdo->prepare("
-            UPDATE product_sizes 
-            SET stock_quantity = stock_quantity + ? 
-            WHERE product_id = ? AND size = ?
-        ");
-        
-        foreach ($orderItems as $item) {
-            $updateStmt->execute([
-                $item['quantity'],
-                $item['product_id'],
-                $item['size']
-            ]);
+        // Restore inventory for each item only if the order was previously 'confirmed'
+        if ($shouldRestoreInventory) {
+            $updateStmt = $pdo->prepare("
+                UPDATE product_sizes 
+                SET stock_quantity = stock_quantity + ? 
+                WHERE product_id = ? AND size = ?
+            ");
             
-            // Update product stock status
-            updateProductStockStatus($item['product_id']);
+            foreach ($orderItems as $item) {
+                $updateStmt->execute([
+                    $item['quantity'],
+                    $item['product_id'],
+                    $item['size']
+                ]);
+                
+                // Update product stock status
+                updateProductStockStatus($item['product_id']);
+            }
         }
         
         // Update order status to cancelled

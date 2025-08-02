@@ -48,14 +48,19 @@ try {
     
     // If this was the primary image, set the next image as primary
     if ($image['is_primary']) {
+        // First, clear all primary flags for this product
+        $stmt = $pdo->prepare("UPDATE product_images SET is_primary = 0 WHERE product_id = ?");
+        $stmt->execute([$productId]);
+        
+        // Then set the image with the lowest sort_order as primary
         $stmt = $pdo->prepare("
             UPDATE product_images 
             SET is_primary = 1 
-            WHERE product_id = ? AND id != ? 
+            WHERE product_id = ? 
             ORDER BY sort_order ASC, id ASC 
             LIMIT 1
         ");
-        $stmt->execute([$productId, $imageId]);
+        $stmt->execute([$productId]);
     }
     
     // Delete the physical file

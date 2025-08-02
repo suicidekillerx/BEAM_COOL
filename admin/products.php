@@ -106,28 +106,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 $pdo = getDBConnection();
                 
-                // Handle image uploads
-                $imagePaths = [];
-                if (isset($_FILES['images']) && is_array($_FILES['images']['name'])) {
+                // Handle single image upload
+                $imagePath = null;
+                if (isset($_FILES['new_image']) && $_FILES['new_image']['error'] === UPLOAD_ERR_OK) {
                     $uploadDir = '../images/products/';
                     
                     if (!is_dir($uploadDir)) {
                         mkdir($uploadDir, 0755, true);
                     }
                     
-                    for ($i = 0; $i < count($_FILES['images']['name']); $i++) {
-                        if ($_FILES['images']['error'][$i] === UPLOAD_ERR_OK) {
-                            $fileExtension = strtolower(pathinfo($_FILES['images']['name'][$i], PATHINFO_EXTENSION));
-                            $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-                            
-                            if (in_array($fileExtension, $allowedExtensions)) {
-                                $fileName = 'product_' . $id . '_' . time() . '_' . $i . '.' . $fileExtension;
-                                $uploadPath = $uploadDir . $fileName;
-                                
-                                if (move_uploaded_file($_FILES['images']['tmp_name'][$i], $uploadPath)) {
-                                    $imagePaths[] = 'images/products/' . $fileName;
-                                }
-                            }
+                    $fileExtension = strtolower(pathinfo($_FILES['new_image']['name'], PATHINFO_EXTENSION));
+                    $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                    
+                    if (in_array($fileExtension, $allowedExtensions)) {
+                        $fileName = 'product_' . $id . '_' . time() . '.' . $fileExtension;
+                        $uploadPath = $uploadDir . $fileName;
+                        
+                        if (move_uploaded_file($_FILES['new_image']['tmp_name'], $uploadPath)) {
+                            $imagePath = 'images/products/' . $fileName;
                         }
                     }
                 }
@@ -136,14 +132,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("UPDATE products SET name = ?, slug = ?, description = ?, short_description = ?, price = ?, sale_price = ?, cost_price = ?, color = ?, category_id = ?, collection_id = ?, is_featured = ?, is_bestseller = ?, is_on_sale = ?, is_active = ?, show_stock = ?, stock_status = ? WHERE id = ?");
                 $stmt->execute([$name, $slug, $description, $shortDescription, $price, $salePrice, $costPrice, $color, $categoryId, $collectionId, $isFeatured, $isBestseller, $isOnSale, $isActive, $showStock, $stockStatus, $id]);
                 
-                // Add new images if uploaded
-                if (!empty($imagePaths)) {
+                // Add new image if uploaded
+                if ($imagePath) {
+                    // Get the next sort order (last image order + 1)
+                    $stmt = $pdo->prepare("SELECT MAX(sort_order) as max_order FROM product_images WHERE product_id = ?");
+                    $stmt->execute([$id]);
+                    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $nextSortOrder = ($result['max_order'] ?? 0) + 1;
+                    
                     $stmt = $pdo->prepare("INSERT INTO product_images (product_id, image_path, is_primary, sort_order) VALUES (?, ?, ?, ?)");
-                    foreach ($imagePaths as $index => $imagePath) {
-                        $isPrimary = 0; // New images are not primary by default
-                        $sortOrder = 100 + $index; // High sort order to place at end
-                        $stmt->execute([$id, $imagePath, $isPrimary, $sortOrder]);
-                    }
+                    $stmt->execute([$id, $imagePath, 0, $nextSortOrder]);
                 }
                 
                 // Update product sizes
@@ -1301,18 +1299,20 @@ function createSlug($string) {
                                 </div>
                             </div>
                             
-                            <!-- Add New Images -->
+                            <!-- Add New Image -->
                             <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                                <h4 class="text-sm font-medium text-gray-800 mb-4">Add New Images</h4>
+                                <h4 class="text-sm font-medium text-gray-800 mb-4">Add New Image</h4>
                                 <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors duration-200 relative">
                                     <svg class="mx-auto h-8 w-8 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
                                         <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                                     </svg>
-                                    <input type="file" name="images[]" multiple accept="image/*" 
-                                           class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                                    <p class="mt-2 text-xs text-gray-600">Click to add images</p>
+                                    <input type="file" name="new_image" accept="image/*" 
+                                           class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                           onchange="handleSingleImageUpload(this)">
+                                    <p class="mt-2 text-xs text-gray-600">Click to add one image</p>
+                                    <p class="text-xs text-gray-500 mt-1">Image will be added with order: <span id="nextImageOrder">1</span></p>
                                 </div>
-                                <div id="editImagePreview" class="mt-4 grid grid-cols-2 gap-2"></div>
+                                <div id="editImagePreview" class="mt-4"></div>
                             </div>
                         </div>
                     </div>
@@ -1463,10 +1463,20 @@ function createSlug($string) {
             
             // Load current images
             loadProductImages(product.id);
+            
+            // Clear image preview
+            document.getElementById('editImagePreview').innerHTML = '';
         }
         
         function closeEditModal() {
             document.getElementById('editModal').classList.remove('show');
+            
+            // Clear file input and preview
+            const fileInput = document.querySelector('input[name="new_image"]');
+            if (fileInput) {
+                fileInput.value = '';
+            }
+            document.getElementById('editImagePreview').innerHTML = '';
         }
         
         function deleteProduct(id) {
@@ -1919,13 +1929,22 @@ function createSlug($string) {
                     if (data.success && data.images.length > 0) {
                         let imagesHTML = '';
                         data.images.forEach((image, index) => {
+                            // Add swap button if not the last image
+                            const swapButton = index < data.images.length - 1 ? `
+                                <div class="flex justify-center my-2">
+                                    <button type="button" onclick="swapImages(${image.id}, ${data.images[index + 1].id}, ${productId})" 
+                                            class="swap-btn bg-gradient-to-r from-blue-500 to-blue-600 text-white w-8 h-8 rounded-full hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex items-center justify-center shadow-md hover:shadow-lg transform hover:scale-110 active:scale-95">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            ` : '';
+                            
                             imagesHTML += `
                                 <div class="relative group">
                                     <img src="${image.full_url}" alt="Product image ${index + 1}" 
                                          class="w-full h-24 object-cover rounded-lg border border-gray-200">
-                                    <div class="absolute top-1 right-1 bg-black bg-opacity-50 text-white text-xs px-1 py-0.5 rounded">
-                                        ${image.sort_order}
-                                    </div>
                                     ${image.is_primary ? '<div class="absolute top-1 left-1 bg-yellow-500 text-white text-xs px-1 py-0.5 rounded">★</div>' : ''}
                                     <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
                                         <button onclick="deleteProductImage(${image.id}, ${productId})" 
@@ -1936,6 +1955,7 @@ function createSlug($string) {
                                         </button>
                                     </div>
                                 </div>
+                                ${swapButton}
                             `;
                         });
                         container.innerHTML = imagesHTML;
@@ -1949,6 +1969,9 @@ function createSlug($string) {
                             </div>
                         `;
                     }
+                    
+                    // Update next image order
+                    updateNextImageOrder(productId);
                 })
                 .catch(error => {
                     console.error('Error loading product images:', error);
@@ -1960,6 +1983,9 @@ function createSlug($string) {
                             <p class="text-xs text-red-500">Error loading images</p>
                         </div>
                     `;
+                    
+                    // Update next image order even on error
+                    updateNextImageOrder(productId);
                 });
         }
         
@@ -1979,7 +2005,7 @@ function createSlug($string) {
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        loadProductImages(productId); // Reload images
+                        loadProductImages(productId); // Reload images and update next order
                     } else {
                         alert('Error deleting image: ' + (data.error || 'Unknown error'));
                     }
@@ -2329,6 +2355,155 @@ function createSlug($string) {
                 });
             }
         });
+        
+        // Handle single image upload for edit modal
+        function handleSingleImageUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            // Validate file type
+            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+            if (!allowedTypes.includes(file.type)) {
+                alert('Please select a valid image file (JPG, PNG, GIF, WEBP)');
+                input.value = '';
+                return;
+            }
+            
+            // Show preview
+            const preview = document.getElementById('editImagePreview');
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                preview.innerHTML = `
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-3">
+                        <div class="flex items-center">
+                            <svg class="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            <span class="text-sm font-medium text-green-800">Image ready to upload</span>
+                        </div>
+                        <div class="mt-2">
+                            <img src="${e.target.result}" alt="Preview" class="w-20 h-20 object-cover rounded border">
+                            <p class="text-xs text-gray-600 mt-1">${file.name}</p>
+                        </div>
+                    </div>
+                `;
+            };
+            
+            reader.readAsDataURL(file);
+        }
+        
+        // Update next image order when loading product images
+        function updateNextImageOrder(productId) {
+            fetch(`get_product_images.php?product_id=${productId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const maxOrder = data.images.length > 0 ? 
+                            Math.max(...data.images.map(img => img.sort_order)) : 0;
+                        const nextOrder = maxOrder + 1;
+                        document.getElementById('nextImageOrder').textContent = nextOrder;
+                    } else {
+                        document.getElementById('nextImageOrder').textContent = '1';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error getting next image order:', error);
+                    document.getElementById('nextImageOrder').textContent = '1';
+                });
+        }
+        
+        // Swap two images
+        function swapImages(imageId1, imageId2, productId) {
+            // Prevent any form submission
+            event.preventDefault();
+            event.stopPropagation();
+            
+            // Show loading state
+            const button = event.target.closest('button');
+            const originalText = button.innerHTML;
+            const originalClasses = button.className;
+            button.innerHTML = `
+                <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+            `;
+            button.className = 'swap-btn bg-gradient-to-r from-yellow-500 to-yellow-600 text-white w-8 h-8 rounded-full transition-all duration-200 flex items-center justify-center shadow-md transform scale-110';
+            button.disabled = true;
+            
+            fetch('swap_images.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    image_id_1: imageId1,
+                    image_id_2: imageId2,
+                    product_id: productId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success feedback
+                    button.innerHTML = `
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    `;
+                    button.className = 'swap-btn bg-gradient-to-r from-green-500 to-green-600 text-white w-8 h-8 rounded-full transition-all duration-200 flex items-center justify-center shadow-lg transform scale-110';
+                    
+                    // Reload images after a short delay
+                    setTimeout(() => {
+                        loadProductImages(productId);
+                    }, 500);
+                    
+                    // Reset button after 2 seconds
+                    setTimeout(() => {
+                        button.innerHTML = originalText;
+                        button.className = originalClasses;
+                        button.disabled = false;
+                    }, 2000);
+                } else {
+                    // Show error feedback
+                    button.innerHTML = `
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                        </svg>
+                    `;
+                    button.className = 'swap-btn bg-gradient-to-r from-red-500 to-red-600 text-white w-8 h-8 rounded-full transition-all duration-200 flex items-center justify-center shadow-md transform scale-105';
+                    
+                    // Reset button after 3 seconds
+                    setTimeout(() => {
+                        button.innerHTML = originalText;
+                        button.className = originalClasses;
+                        button.disabled = false;
+                    }, 3000);
+                    
+                    alert('Error swapping images: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error swapping images:', error);
+                
+                // Show error feedback
+                button.innerHTML = `
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                    </svg>
+                `;
+                button.className = 'swap-btn bg-gradient-to-r from-red-500 to-red-600 text-white w-8 h-8 rounded-full transition-all duration-200 flex items-center justify-center shadow-md transform scale-105';
+                
+                // Reset button after 3 seconds
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.className = originalClasses;
+                    button.disabled = false;
+                }, 3000);
+                
+                alert('Error swapping images');
+            });
+        }
     </script>
 </body>
 </html> 
