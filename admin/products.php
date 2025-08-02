@@ -1911,36 +1911,142 @@ function createSlug($string) {
         // Load product images for edit modal
         function loadProductImages(productId) {
             const container = document.getElementById('editCurrentImages');
-            container.innerHTML = '';
+            container.innerHTML = '<div class="text-center p-4"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div><p class="text-xs text-gray-500 mt-2">Loading images...</p></div>';
             
-            // This would typically be an AJAX call to get current images
-            // For now, we'll show a placeholder
-            container.innerHTML = `
-                <div class="text-center p-4 bg-gray-100 rounded">
-                    <svg class="w-8 h-8 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                    </svg>
-                    <p class="text-xs text-gray-500">Current images will be loaded here</p>
-                </div>
-            `;
+            fetch(`get_product_images.php?product_id=${productId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.images.length > 0) {
+                        let imagesHTML = '';
+                        data.images.forEach((image, index) => {
+                            imagesHTML += `
+                                <div class="relative group">
+                                    <img src="${image.full_url}" alt="Product image ${index + 1}" 
+                                         class="w-full h-24 object-cover rounded-lg border border-gray-200">
+                                    <div class="absolute top-1 right-1 bg-black bg-opacity-50 text-white text-xs px-1 py-0.5 rounded">
+                                        ${image.sort_order}
+                                    </div>
+                                    ${image.is_primary ? '<div class="absolute top-1 left-1 bg-yellow-500 text-white text-xs px-1 py-0.5 rounded">★</div>' : ''}
+                                    <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                        <button onclick="deleteProductImage(${image.id}, ${productId})" 
+                                                class="bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        container.innerHTML = imagesHTML;
+                    } else {
+                        container.innerHTML = `
+                            <div class="text-center p-4 bg-gray-100 rounded">
+                                <svg class="w-8 h-8 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                </svg>
+                                <p class="text-xs text-gray-500">No images found</p>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading product images:', error);
+                    container.innerHTML = `
+                        <div class="text-center p-4 bg-red-50 rounded">
+                            <svg class="w-8 h-8 text-red-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                            </svg>
+                            <p class="text-xs text-red-500">Error loading images</p>
+                        </div>
+                    `;
+                });
+        }
+        
+        // Delete product image
+        function deleteProductImage(imageId, productId) {
+            if (confirm('Are you sure you want to delete this image?')) {
+                fetch('delete_image.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image_id: imageId,
+                        product_id: productId
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        loadProductImages(productId); // Reload images
+                    } else {
+                        alert('Error deleting image: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error deleting image:', error);
+                    alert('Error deleting image');
+                });
+            }
         }
         
         // Enhanced stock loading with total calculation
         function loadProductStock(productId) {
             const sizes = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
-            let total = 0;
             
-            sizes.forEach(size => {
-                const input = document.getElementById('edit_stock_' + size);
-                if (input) {
-                    // This would typically be an AJAX call to get current stock
-                    const stock = Math.floor(Math.random() * 50); // Placeholder
-                    input.value = stock;
-                    total += stock;
-                }
-            });
-            
-            document.getElementById('editTotalStock').textContent = total;
+            fetch(`get_product_stock.php?product_id=${productId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update stock inputs
+                        sizes.forEach(size => {
+                            const input = document.getElementById('edit_stock_' + size);
+                            if (input) {
+                                input.value = data.stock[size] || 0;
+                            }
+                        });
+                        
+                        // Update total stock
+                        document.getElementById('editTotalStock').textContent = data.total_stock;
+                        
+                        // Update stock settings
+                        const showStockCheckbox = document.getElementById('edit_show_stock');
+                        const stockStatusSelect = document.getElementById('edit_stock_status');
+                        
+                        if (showStockCheckbox) {
+                            showStockCheckbox.checked = data.show_stock;
+                        }
+                        
+                        if (stockStatusSelect) {
+                            stockStatusSelect.value = data.stock_status;
+                        }
+                        
+                        // Update status preview
+                        updateEditStatusPreview();
+                    } else {
+                        console.error('Error loading stock data:', data.error);
+                        // Fallback to default values
+                        sizes.forEach(size => {
+                            const input = document.getElementById('edit_stock_' + size);
+                            if (input) {
+                                input.value = 0;
+                            }
+                        });
+                        document.getElementById('editTotalStock').textContent = '0';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading product stock:', error);
+                    // Fallback to default values
+                    sizes.forEach(size => {
+                        const input = document.getElementById('edit_stock_' + size);
+                        if (input) {
+                            input.value = 0;
+                        }
+                    });
+                    document.getElementById('editTotalStock').textContent = '0';
+                });
         }
         
         // Calculate total stock for add modal

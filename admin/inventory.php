@@ -998,43 +998,72 @@ if (isset($_GET['success'])) {
         
         // Fetch product stock from server
         function fetchProductStock(productId) {
-            // In a real implementation, this would be an AJAX call to get the current stock
-            // For now, we'll simulate it with random values
             const sizes = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
-            let total = 0;
             
-            sizes.forEach(size => {
-                // This would be replaced with actual data from the server
-                const stock = Math.floor(Math.random() * 10);
-                
-                // Update mobile input
-                const mobileInput = document.getElementById('stock_' + size);
-                if (mobileInput) {
-                    mobileInput.value = stock;
-                }
-                
-                // Update desktop input
-                const desktopInput = document.getElementById('stock_desktop_' + size);
-                if (desktopInput) {
-                    desktopInput.value = stock;
-                }
-                
-                total += stock;
-            });
+            // Show loading state
+            modalTotalStock.textContent = 'Loading...';
             
-            modalTotalStock.textContent = total;
-            
-            // Also set the show_stock and stock_status values based on product settings
-            // This would also come from the server in a real implementation
-            showStockCheckbox.checked = Math.random() > 0.5;
-            document.getElementById('stock_status').value = Math.random() > 0.5 ? 'in_stock' : 'low_stock';
-            
-            // Update visibility of stock status section
-            if (showStockCheckbox.checked) {
-                stockStatusSection.classList.add('hidden');
-            } else {
-                stockStatusSection.classList.remove('hidden');
-            }
+            fetch(`get_product_stock.php?product_id=${productId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        let total = 0;
+                        
+                        sizes.forEach(size => {
+                            const stock = data.stock[size] || 0;
+                            
+                            // Update mobile input
+                            const mobileInput = document.getElementById('stock_' + size);
+                            if (mobileInput) {
+                                mobileInput.value = stock;
+                            }
+                            
+                            // Update desktop input
+                            const desktopInput = document.getElementById('stock_desktop_' + size);
+                            if (desktopInput) {
+                                desktopInput.value = stock;
+                            }
+                            
+                            total += stock;
+                        });
+                        
+                        modalTotalStock.textContent = total;
+                        
+                        // Set the show_stock and stock_status values based on product settings
+                        showStockCheckbox.checked = data.show_stock;
+                        document.getElementById('stock_status').value = data.stock_status;
+                        
+                        // Update visibility of stock status section
+                        if (showStockCheckbox.checked) {
+                            stockStatusSection.classList.add('hidden');
+                        } else {
+                            stockStatusSection.classList.remove('hidden');
+                        }
+                    } else {
+                        console.error('Error loading stock data:', data.error);
+                        // Fallback to default values
+                        sizes.forEach(size => {
+                            const mobileInput = document.getElementById('stock_' + size);
+                            const desktopInput = document.getElementById('stock_desktop_' + size);
+                            
+                            if (mobileInput) mobileInput.value = 0;
+                            if (desktopInput) desktopInput.value = 0;
+                        });
+                        modalTotalStock.textContent = '0';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching product stock:', error);
+                    // Fallback to default values
+                    sizes.forEach(size => {
+                        const mobileInput = document.getElementById('stock_' + size);
+                        const desktopInput = document.getElementById('stock_desktop_' + size);
+                        
+                        if (mobileInput) mobileInput.value = 0;
+                        if (desktopInput) desktopInput.value = 0;
+                    });
+                    modalTotalStock.textContent = '0';
+                });
         }
     });
     </script>
