@@ -70,14 +70,6 @@ $currentPage = $currentPage ?? 'dashboard';
             <span class="ml-auto bg-green-500 text-white text-xs px-2 py-1 rounded-full notification-badge">5</span>
         </a>
         
-        <!-- Orders History -->
-        <a href="orders_history.php" class="menu-item flex items-center space-x-3 px-4 py-3 text-white rounded-lg <?php echo $currentPage === 'orders_history' ? 'active' : ''; ?>">
-            <svg class="menu-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-            <span class="font-medium">Orders History</span>
-        </a>
-        
         <!-- Inventory -->
         <a href="inventory.php" class="menu-item flex items-center space-x-3 px-4 py-3 text-white rounded-lg <?php echo $currentPage === 'inventory' ? 'active' : ''; ?>">
             <svg class="menu-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
