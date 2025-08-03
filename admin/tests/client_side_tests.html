@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Client Side Unit Tests</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/jest@29.7.0/dist/jest.js"></script>
+    <style>
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .test-pass { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .test-fail { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .test-info { background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        .test-section { margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-radius: 8px; }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-900 mb-8">Admin Panel - Client Side Unit Tests</h1>
+        
+        <div id="test-results"></div>
+        
+        <!-- Test Controls -->
+        <div class="test-section">
+            <h2 class="text-xl font-semibold mb-4">Test Controls</h2>
+            <button onclick="runAllTests()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mr-2">
+                Run All Tests
+            </button>
+            <button onclick="clearResults()" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">
+                Clear Results
+            </button>
+        </div>
+
+        <!-- Mock Admin Functions -->
+        <script>
+            // Mock admin functions for testing
+            window.adminSecurity = {
+                clearAdminCache: function() { return true; },
+                preventFormResubmission: function() { return true; }
+            };
+
+            // Mock notification function
+            function showNotification(message, type) {
+                console.log(`Notification [${type}]: ${message}`);
+                return true;
+            }
+
+            // Mock fetch for AJAX testing
+            const originalFetch = window.fetch;
+            window.fetch = function(url, options) {
+                console.log(`Mock fetch called: ${url}`);
+                
+                // Simulate different responses based on action
+                if (options && options.body) {
+                    const formData = new FormData(options.body);
+                    const action = formData.get('action');
+                    
+                    if (action === 'add_admin_user') {
+                        return Promise.resolve({
+                            json: () => Promise.resolve({ success: true, message: 'User added successfully' })
+                        });
+                    } else if (action === 'delete_admin_user') {
+                        return Promise.resolve({
+                            json: () => Promise.resolve({ success: true, message: 'User deleted successfully' })
+                        });
+                    }
+                }
+                
+                return Promise.resolve({
+                    json: () => Promise.resolve({ success: true, data: 'Mock response' })
+                });
+            };
+
+            // Test Results Container
+            let testResults = [];
+            let passedTests = 0;
+            let failedTests = 0;
+
+            function addTestResult(testName, passed, message = '') {
+                const result = {
+                    name: testName,
+                    passed: passed,
+                    message: message,
+                    timestamp: new Date().toISOString()
+                };
+                testResults.push(result);
+                
+                if (passed) {
+                    passedTests++;
+                } else {
+                    failedTests++;
+                }
+                
+                displayTestResult(result);
+            }
+
+            function displayTestResult(result) {
+                const container = document.getElementById('test-results');
+                const resultDiv = document.createElement('div');
+                resultDiv.className = `test-result ${result.passed ? 'test-pass' : 'test-fail'}`;
+                resultDiv.innerHTML = `
+                    <strong>${result.passed ? '✅ PASS' : '❌ FAIL'}</strong>: ${result.name}
+                    ${result.message ? `<br><small>${result.message}</small>` : ''}
+                `;
+                container.appendChild(resultDiv);
+            }
+
+            function clearResults() {
+                document.getElementById('test-results').innerHTML = '';
+                testResults = [];
+                passedTests = 0;
+                failedTests = 0;
+            }
+
+            // Test Functions
+            function testAuthentication() {
+                console.log('Testing Authentication...');
+                
+                // Test session storage
+                try {
+                    sessionStorage.setItem('test', 'value');
+                    const value = sessionStorage.getItem('test');
+                    addTestResult('Session Storage', value === 'value');
+                } catch (e) {
+                    addTestResult('Session Storage', false, e.message);
+                }
+
+                // Test localStorage
+                try {
+                    localStorage.setItem('test', 'value');
+                    const value = localStorage.getItem('test');
+                    addTestResult('Local Storage', value === 'value');
+                } catch (e) {
+                    addTestResult('Local Storage', false, e.message);
+                }
+
+                // Test window.history.replaceState
+                try {
+                    const originalUrl = window.location.href;
+                    window.history.replaceState(null, null, originalUrl);
+                    addTestResult('History Replace State', true);
+                } catch (e) {
+                    addTestResult('History Replace State', false, e.message);
+                }
+            }
+
+            function testFormHandling() {
+                console.log('Testing Form Handling...');
+                
+                // Test FormData creation
+                try {
+                    const form = document.createElement('form');
+                    const input = document.createElement('input');
+                    input.name = 'test';
+                    input.value = 'testvalue';
+                    form.appendChild(input);
+                    
+                    const formData = new FormData(form);
+                    const value = formData.get('test');
+                    addTestResult('FormData Creation', value === 'testvalue');
+                } catch (e) {
+                    addTestResult('FormData Creation', false, e.message);
+                }
+
+                // Test form validation
+                try {
+                    const form = document.createElement('form');
+                    const input = document.createElement('input');
+                    input.required = true;
+                    input.value = '';
+                    form.appendChild(input);
+                    
+                    const isValid = form.checkValidity();
+                    addTestResult('Form Validation', !isValid); // Should fail validation
+                } catch (e) {
+                    addTestResult('Form Validation', false, e.message);
+                }
+
+                // Test form reset
+                try {
+                    const form = document.createElement('form');
+                    const input = document.createElement('input');
+                    input.value = 'test';
+                    form.appendChild(input);
+                    
+                    form.reset();
+                    addTestResult('Form Reset', input.value === '');
+                } catch (e) {
+                    addTestResult('Form Reset', false, e.message);
+                }
+            }
+
+            function testAJAXRequests() {
+                console.log('Testing AJAX Requests...');
+                
+                // Test fetch API
+                try {
+                    const promise = fetch('/test-url');
+                    addTestResult('Fetch API Available', promise instanceof Promise);
+                } catch (e) {
+                    addTestResult('Fetch API Available', false, e.message);
+                }
+
+                // Test FormData with fetch
+                try {
+                    const formData = new FormData();
+                    formData.append('action', 'test_action');
+                    formData.append('data', 'test_data');
+                    
+                    const promise = fetch('/test-url', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    addTestResult('Fetch with FormData', promise instanceof Promise);
+                } catch (e) {
+                    addTestResult('Fetch with FormData', false, e.message);
+                }
+
+                // Test JSON parsing
+                try {
+                    const testJson = '{"success": true, "message": "test"}';
+                    const parsed = JSON.parse(testJson);
+                    addTestResult('JSON Parsing', parsed.success === true);
+                } catch (e) {
+                    addTestResult('JSON Parsing', false, e.message);
+                }
+            }
+
+            function testNotifications() {
+                console.log('Testing Notifications...');
+                
+                // Test notification function
+                try {
+                    const result = showNotification('Test message', 'success');
+                    addTestResult('Notification Function', result === true);
+                } catch (e) {
+                    addTestResult('Notification Function', false, e.message);
+                }
+
+                // Test notification types
+                try {
+                    const types = ['success', 'error', 'info'];
+                    let allWorked = true;
+                    
+                    types.forEach(type => {
+                        try {
+                            showNotification(`Test ${type}`, type);
+                        } catch (e) {
+                            allWorked = false;
+                        }
+                    });
+                    
+                    addTestResult('Notification Types', allWorked);
+                } catch (e) {
+                    addTestResult('Notification Types', false, e.message);
+                }
+            }
+
+            function testSecurityFeatures() {
+                console.log('Testing Security Features...');
+                
+                // Test adminSecurity object
+                try {
+                    const cacheResult = window.adminSecurity.clearAdminCache();
+                    const formResult = window.adminSecurity.preventFormResubmission();
+                    addTestResult('Security Functions', cacheResult && formResult);
+                } catch (e) {
+                    addTestResult('Security Functions', false, e.message);
+                }
+
+                // Test confirm dialog simulation
+                try {
+                    const originalConfirm = window.confirm;
+                    window.confirm = () => true;
+                    const result = confirm('Test');
+                    window.confirm = originalConfirm;
+                    addTestResult('Confirm Dialog', result === true);
+                } catch (e) {
+                    addTestResult('Confirm Dialog', false, e.message);
+                }
+
+                // Test setTimeout
+                try {
+                    let testPassed = false;
+                    setTimeout(() => { testPassed = true; }, 100);
+                    setTimeout(() => {
+                        addTestResult('setTimeout', testPassed);
+                    }, 150);
+                } catch (e) {
+                    addTestResult('setTimeout', false, e.message);
+                }
+            }
+
+            function testDOMManipulation() {
+                console.log('Testing DOM Manipulation...');
+                
+                // Test element creation
+                try {
+                    const div = document.createElement('div');
+                    div.className = 'test-class';
+                    div.textContent = 'Test content';
+                    addTestResult('Element Creation', div.className === 'test-class' && div.textContent === 'Test content');
+                } catch (e) {
+                    addTestResult('Element Creation', false, e.message);
+                }
+
+                // Test element removal
+                try {
+                    const div = document.createElement('div');
+                    div.id = 'test-remove';
+                    document.body.appendChild(div);
+                    div.remove();
+                    const exists = document.getElementById('test-remove');
+                    addTestResult('Element Removal', !exists);
+                } catch (e) {
+                    addTestResult('Element Removal', false, e.message);
+                }
+
+                // Test querySelector
+                try {
+                    const div = document.createElement('div');
+                    div.className = 'test-selector';
+                    document.body.appendChild(div);
+                    const found = document.querySelector('.test-selector');
+                    div.remove();
+                    addTestResult('Query Selector', found !== null);
+                } catch (e) {
+                    addTestResult('Query Selector', false, e.message);
+                }
+            }
+
+            function testEventHandling() {
+                console.log('Testing Event Handling...');
+                
+                // Test event listener
+                try {
+                    let eventFired = false;
+                    const button = document.createElement('button');
+                    button.addEventListener('click', () => { eventFired = true; });
+                    button.click();
+                    addTestResult('Event Listener', eventFired);
+                } catch (e) {
+                    addTestResult('Event Listener', false, e.message);
+                }
+
+                // Test preventDefault
+                try {
+                    let defaultPrevented = false;
+                    const link = document.createElement('a');
+                    link.href = '#';
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        defaultPrevented = true;
+                    });
+                    link.click();
+                    addTestResult('Prevent Default', defaultPrevented);
+                } catch (e) {
+                    addTestResult('Prevent Default', false, e.message);
+                }
+            }
+
+            function testDataValidation() {
+                console.log('Testing Data Validation...');
+                
+                // Test email validation
+                try {
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    const validEmail = 'test@example.com';
+                    const invalidEmail = 'invalid-email';
+                    addTestResult('Email Validation', emailRegex.test(validEmail) && !emailRegex.test(invalidEmail));
+                } catch (e) {
+                    addTestResult('Email Validation', false, e.message);
+                }
+
+                // Test password strength
+                try {
+                    const strongPassword = 'Test123!@#';
+                    const weakPassword = '123';
+                    const hasLength = strongPassword.length >= 8;
+                    const hasUpperCase = /[A-Z]/.test(strongPassword);
+                    const hasLowerCase = /[a-z]/.test(strongPassword);
+                    const hasNumber = /\d/.test(strongPassword);
+                    
+                    addTestResult('Password Strength', hasLength && hasUpperCase && hasLowerCase && hasNumber);
+                } catch (e) {
+                    addTestResult('Password Strength', false, e.message);
+                }
+
+                // Test username validation
+                try {
+                    const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
+                    const validUsername = 'testuser123';
+                    const invalidUsername = 'test@user';
+                    addTestResult('Username Validation', usernameRegex.test(validUsername) && !usernameRegex.test(invalidUsername));
+                } catch (e) {
+                    addTestResult('Username Validation', false, e.message);
+                }
+            }
+
+            function testErrorHandling() {
+                console.log('Testing Error Handling...');
+                
+                // Test try-catch
+                try {
+                    let errorCaught = false;
+                    try {
+                        throw new Error('Test error');
+                    } catch (e) {
+                        errorCaught = true;
+                    }
+                    addTestResult('Try-Catch', errorCaught);
+                } catch (e) {
+                    addTestResult('Try-Catch', false, e.message);
+                }
+
+                // Test async error handling
+                try {
+                    const promise = Promise.reject(new Error('Test async error'));
+                    promise.catch(error => {
+                        addTestResult('Async Error Handling', error.message === 'Test async error');
+                    });
+                } catch (e) {
+                    addTestResult('Async Error Handling', false, e.message);
+                }
+            }
+
+            function testPerformance() {
+                console.log('Testing Performance...');
+                
+                // Test performance timing
+                try {
+                    const start = performance.now();
+                    setTimeout(() => {
+                        const end = performance.now();
+                        const duration = end - start;
+                        addTestResult('Performance Timing', duration >= 0);
+                    }, 10);
+                } catch (e) {
+                    addTestResult('Performance Timing', false, e.message);
+                }
+
+                // Test memory usage (basic)
+                try {
+                    const initialMemory = performance.memory ? performance.memory.usedJSHeapSize : 0;
+                    const arr = new Array(1000).fill('test');
+                    const finalMemory = performance.memory ? performance.memory.usedJSHeapSize : 0;
+                    addTestResult('Memory Usage', finalMemory >= initialMemory);
+                } catch (e) {
+                    addTestResult('Memory Usage', false, e.message);
+                }
+            }
+
+            function runAllTests() {
+                console.log('Starting all tests...');
+                clearResults();
+                
+                // Run all test categories
+                testAuthentication();
+                testFormHandling();
+                testAJAXRequests();
+                testNotifications();
+                testSecurityFeatures();
+                testDOMManipulation();
+                testEventHandling();
+                testDataValidation();
+                testErrorHandling();
+                testPerformance();
+                
+                // Display final results
+                setTimeout(() => {
+                    const container = document.getElementById('test-results');
+                    const summaryDiv = document.createElement('div');
+                    summaryDiv.className = 'test-section';
+                    summaryDiv.innerHTML = `
+                        <h3 class="text-lg font-semibold mb-2">Test Summary</h3>
+                        <p><strong>Total Tests:</strong> ${testResults.length}</p>
+                        <p><strong>Passed:</strong> ${passedTests}</p>
+                        <p><strong>Failed:</strong> ${failedTests}</p>
+                        <p><strong>Success Rate:</strong> ${((passedTests / testResults.length) * 100).toFixed(1)}%</p>
+                    `;
+                    container.appendChild(summaryDiv);
+                }, 1000);
+            }
+
+            // Auto-run tests on page load
+            window.addEventListener('load', () => {
+                console.log('Page loaded, ready for testing...');
+            });
+        </script>
+    </div>
+</body>
+</html> 

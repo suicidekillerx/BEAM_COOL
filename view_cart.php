@@ -2,6 +2,11 @@
 session_start();
 require_once 'includes/functions.php';
 
+// Add cache-busting headers
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+
 // Check maintenance mode before accessing cart
 checkMaintenanceMode();
 
@@ -43,10 +48,23 @@ if (isset($_POST['update_quantity'])) {
 $cartItems = getCartItems();
 $totalItems = array_sum(array_column($cartItems, 'quantity'));
 $subtotal = array_sum(array_column($cartItems, 'total_price'));
-$shipping = $totalItems > 0 ? (float)getSiteSetting('shipping_cost', 15.000) : 0; // Free shipping over 100 DTN
+$shipping = $totalItems > 0 ? (float)getSiteSetting('shipping_cost', 15.000) : 0;
 $taxRate = (float)getSiteSetting('tax_rate', 0.19);
 $tax = $subtotal * $taxRate;
-$total = $subtotal + $shipping + $tax;
+
+// Get applied promo code and recalculate discount
+$appliedPromoCode = getAppliedPromoCode();
+$promoDiscount = 0;
+
+if ($appliedPromoCode) {
+    // Recalculate discount based on current cart
+    $promoDiscount = calculateDiscount($appliedPromoCode, $subtotal);
+    
+    // Update the stored discount amount
+    $_SESSION['applied_promo_code']['discount_amount'] = $promoDiscount;
+}
+
+$total = $subtotal + $shipping + $tax - $promoDiscount;
 
 // Calculate savings
 $originalTotal = 0;
@@ -231,17 +249,7 @@ $savings = $originalTotal - $subtotal;
                             
                             <div class="p-6">
                                 <!-- Savings Alert -->
-                                <?php if ($savings > 0): ?>
-                                <div class="bg-gray-100 border border-gray-300 rounded-lg p-4 mb-6">
-                                    <div class="flex items-center">
-                                        <i class="fas fa-gift text-gray-700 text-xl mr-3"></i>
-                                        <div>
-                                            <h4 class="font-bold text-gray-800">You're Saving!</h4>
-                                            <p class="text-gray-700 text-sm">Total savings: <span class="font-bold"><?php echo formatPrice($savings); ?></span></p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <?php endif; ?>
+                                
                                 
                                 <!-- Price Breakdown -->
                                 <div class="space-y-3 mb-6">
@@ -259,18 +267,15 @@ $savings = $originalTotal - $subtotal;
                                             <?php echo $shipping > 0 ? formatPrice($shipping) : 'FREE'; ?>
                                         </span>
                                     </div>
-                                    <?php if ($savings > 0): ?>
-                                    <div class="flex justify-between text-gray-800 font-semibold">
-                                        <span>Total Savings</span>
-                                        <span>-<?php echo formatPrice($savings); ?></span>
-                                    </div>
-                                    <?php endif; ?>
+                                    
                                     
                                     <!-- Promo Code Discount -->
-                                    <div id="promoDiscountRow" class="hidden flex justify-between text-green-600 font-semibold">
+                                    <?php if ($appliedPromoCode && $promoDiscount > 0): ?>
+                                    <div class="flex justify-between text-green-600 font-semibold">
                                         <span>Promo Code Discount</span>
-                                        <span id="promoDiscountAmount">-0.000 DTN</span>
+                                        <span>-<?php echo formatPrice($promoDiscount); ?></span>
                                     </div>
+                                    <?php endif; ?>
                                     
                                     <div class="border-t border-gray-200 pt-3">
                                         <div class="flex justify-between text-xl font-bold text-gray-900">
@@ -298,6 +303,19 @@ $savings = $originalTotal - $subtotal;
                                     </div>
                                     
                                     <!-- Applied Promo Code Display -->
+                                    <?php if ($appliedPromoCode): ?>
+                                    <div id="appliedPromoCode" class="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <span class="font-semibold text-green-800" id="appliedPromoName"><?php echo htmlspecialchars($appliedPromoCode['name']); ?></span>
+                                                <span class="text-green-600 text-sm ml-2" id="appliedPromoDiscount">-<?php echo formatPrice($promoDiscount); ?></span>
+                                            </div>
+                                            <button onclick="removePromoCode()" class="text-green-600 hover:text-green-800">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <?php else: ?>
                                     <div id="appliedPromoCode" class="hidden mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
                                         <div class="flex items-center justify-between">
                                             <div>
@@ -309,6 +327,7 @@ $savings = $originalTotal - $subtotal;
                                             </button>
                                         </div>
                                     </div>
+                                    <?php endif; ?>
                                 </div>
                                 
                                 <!-- Checkout Button -->
@@ -339,6 +358,8 @@ $savings = $originalTotal - $subtotal;
     <script>
     var SHIPPING_COST = <?php echo json_encode((float)getSiteSetting('shipping_cost', 15.000)); ?>;
     var TAX_RATE = <?php echo json_encode($taxRate); ?>;
+    var APPLIED_PROMO_CODE = <?php echo json_encode($appliedPromoCode); ?>;
+    
     document.addEventListener('DOMContentLoaded', function() {
         // Quantity update functionality
         document.querySelectorAll('.quantity-btn').forEach(btn => {
@@ -397,22 +418,54 @@ $savings = $originalTotal - $subtotal;
             formData.append('cart_item_id', cartId);
             formData.append('quantity', quantity);
             
-            fetch('ajax_handler.php', {
+            fetch('cart_handler.php', {
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.text().then(text => {
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        console.error('Invalid JSON response:', text);
+                        throw new Error('Invalid JSON response from server');
+                    }
+                });
+            })
             .then(data => {
                 if (data.success) {
                     // Update the item's total price display
                     updateItemTotal(cartId, quantity);
-                    // Update cart totals
+                    // Update cart totals and recalculate promo code
                     updateCartTotals();
                     // Update cart count in header
                     updateHeaderCartCount();
                     
-                    // Show success feedback
-                    showNotification('Cart updated successfully!', 'success');
+                    // Handle promo code updates
+                    if (data.promo_info && data.promo_info.discount_updated) {
+                        console.log('Promo discount updated:', data.promo_info);
+                        if (APPLIED_PROMO_CODE) {
+                            APPLIED_PROMO_CODE.discount_amount = data.promo_info.new_discount;
+                            updateAppliedPromoCodeDisplay(data.promo_info.new_discount);
+                            console.log('Updated discount display to:', data.promo_info.new_discount);
+                        }
+                        showNotification('Promo code discount updated!', 'success');
+                    } else if (data.promo_removed) {
+                        APPLIED_PROMO_CODE = null;
+                        hideAppliedPromoCode();
+                        showNotification(data.message, 'info');
+                    } else if (data.promo_updated) {
+                        if (APPLIED_PROMO_CODE) {
+                            APPLIED_PROMO_CODE.discount_amount = data.new_discount;
+                            updateAppliedPromoCodeDisplay(data.new_discount);
+                        }
+                        showNotification(data.message, 'success');
+                    } else {
+                        showNotification(data.message || 'Cart updated successfully!', 'success');
+                    }
                 } else {
                     showNotification(data.message || 'Failed to update cart', 'error');
                     // Revert the quantity input
@@ -434,11 +487,23 @@ $savings = $originalTotal - $subtotal;
             formData.append('action', 'remove_from_cart');
             formData.append('cart_item_id', cartId);
             
-            fetch('ajax_handler.php', {
+            fetch('cart_handler.php', {
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.text().then(text => {
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        console.error('Invalid JSON response:', text);
+                        throw new Error('Invalid JSON response from server');
+                    }
+                });
+            })
             .then(data => {
                 if (data.success) {
                     // Animate item removal
@@ -458,7 +523,26 @@ $savings = $originalTotal - $subtotal;
                         }, 300);
                     }
                     
-                    showNotification('Item removed from cart', 'success');
+                    // Handle promo code updates
+                    if (data.promo_info && data.promo_info.discount_updated) {
+                        if (APPLIED_PROMO_CODE) {
+                            APPLIED_PROMO_CODE.discount_amount = data.promo_info.new_discount;
+                            updateAppliedPromoCodeDisplay(data.promo_info.new_discount);
+                        }
+                        showNotification('Promo code discount updated!', 'success');
+                    } else if (data.promo_removed) {
+                        APPLIED_PROMO_CODE = null;
+                        hideAppliedPromoCode();
+                        showNotification(data.message, 'info');
+                    } else if (data.promo_updated) {
+                        if (APPLIED_PROMO_CODE) {
+                            APPLIED_PROMO_CODE.discount_amount = data.new_discount;
+                            updateAppliedPromoCodeDisplay(data.new_discount);
+                        }
+                        showNotification(data.message, 'success');
+                    } else {
+                        showNotification(data.message || 'Item removed from cart', 'success');
+                    }
                 } else {
                     showNotification(data.message || 'Failed to remove item', 'error');
                 }
@@ -475,7 +559,7 @@ $savings = $originalTotal - $subtotal;
             if (itemElement) {
                 const priceElement = itemElement.querySelector('.text-lg.font-bold.text-gray-900');
                 
-                // Get the original price from the sale price or regular price
+                // Get the correct price from the sale price or regular price
                 let price = 0;
                 const salePriceElement = itemElement.querySelector('.text-2xl.font-bold.text-gray-900');
                 const originalPriceElement = itemElement.querySelector('.text-lg.text-gray-500.line-through');
@@ -582,157 +666,7 @@ $savings = $originalTotal - $subtotal;
             });
         }
         
-        function updateCartTotals() {
-            // Recalculate totals based on remaining items
-            const items = document.querySelectorAll('.cart-item-enter');
-            let totalItems = 0;
-            let subtotal = 0;
-            
-            items.forEach(item => {
-                const quantity = parseInt(item.querySelector('.quantity-input').value);
-                
-                // Get the correct price (sale price if available, otherwise regular price)
-                let price = 0;
-                const salePriceElement = item.querySelector('.text-2xl.font-bold.text-gray-900');
-                const originalPriceElement = item.querySelector('.text-lg.text-gray-500.line-through');
-                
-                if (salePriceElement) {
-                    // Use sale price if available
-                    const salePriceText = salePriceElement.textContent;
-                    price = parseFloat(salePriceText.replace(/[^0-9.]/g, ''));
-                } else if (originalPriceElement) {
-                    // Use original price if no sale price
-                    const originalPriceText = originalPriceElement.textContent;
-                    price = parseFloat(originalPriceText.replace(/[^0-9.]/g, ''));
-                }
-                
-                totalItems += quantity;
-                subtotal += price * quantity;
-            });
-            
-            // Calculate tax and shipping
-            const tax = subtotal * TAX_RATE;
-            const shipping = totalItems > 0 ? SHIPPING_COST : 0;
-            const total = subtotal + tax + shipping;
-            
-            // Update summary
-            const summaryElement = document.querySelector('.sticky-cart');
-            if (summaryElement) {
-                // Update subtotal
-                const subtotalElement = summaryElement.querySelector('.space-y-3 .flex.justify-between:first-child span:last-child');
-                const totalItemsElement = summaryElement.querySelector('.space-y-3 .flex.justify-between:first-child span:first-child');
-                
-                if (subtotalElement) {
-                    subtotalElement.textContent = formatPrice(subtotal);
-                }
-                if (totalItemsElement) {
-                    totalItemsElement.textContent = `Subtotal (${totalItems} items)`;
-                }
-                
-                // Update tax
-                const taxElement = summaryElement.querySelector('.space-y-3 .flex.justify-between:nth-child(2) span:last-child');
-                if (taxElement) {
-                    taxElement.textContent = formatPrice(tax);
-                }
-                
-                // Update shipping
-                const shippingElement = summaryElement.querySelector('.space-y-3 .flex.justify-between:nth-child(3) span:last-child');
-                if (shippingElement) {
-                    shippingElement.textContent = shipping > 0 ? formatPrice(shipping) : 'FREE';
-                    shippingElement.className = shipping > 0 ? 'text-gray-800' : 'text-green-600';
-                }
-                
-                // Update total
-                const totalElement = summaryElement.querySelector('.border-t.border-gray-200.pt-3 .flex.justify-between.text-xl.font-bold.text-gray-900 span:last-child');
-                if (totalElement) {
-                    totalElement.textContent = formatPrice(total);
-                }
-            }
-        }
-        
-        function formatPrice(amount) {
-            return amount.toFixed(3) + ' DTN';
-        }
-        
-        // Promo Code Functions
-        function applyPromoCode() {
-            console.log('applyPromoCode called');
-            const code = document.getElementById('promoCodeInput').value.trim();
-            console.log('Promo code:', code);
-            
-            if (!code) {
-                showNotification('Please enter a promo code', 'error');
-                return;
-            }
-            
-            const formData = new FormData();
-            formData.append('action', 'apply_promo_code');
-            formData.append('code', code);
-            
-            console.log('Sending request to ajax_handler.php');
-            
-            fetch('ajax_handler.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => {
-                console.log('Response received:', response);
-                return response.json();
-            })
-            .then(data => {
-                console.log('Data received:', data);
-                if (data.success) {
-                    showAppliedPromoCode(data.promo_code, data.discount_amount);
-                    updateCartTotals();
-                    showNotification(data.message, 'success');
-                } else {
-                    showNotification(data.message, 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error applying promo code:', error);
-                showNotification('Network error. Please try again.', 'error');
-            });
-        }
-        
-        function removePromoCode() {
-            const formData = new FormData();
-            formData.append('action', 'remove_promo_code');
-            
-            fetch('ajax_handler.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    hideAppliedPromoCode();
-                    updateCartTotals();
-                    showNotification(data.message, 'success');
-                }
-            })
-            .catch(error => {
-                console.error('Error removing promo code:', error);
-                showNotification('Network error. Please try again.', 'error');
-            });
-        }
-        
-        function showAppliedPromoCode(promoCode, discountAmount) {
-            document.getElementById('appliedPromoCode').classList.remove('hidden');
-            document.getElementById('appliedPromoName').textContent = promoCode.name;
-            document.getElementById('appliedPromoDiscount').textContent = `-${formatPrice(discountAmount)}`;
-            document.getElementById('promoCodeInput').value = '';
-            document.getElementById('promoCodeInput').disabled = true;
-            document.getElementById('applyPromoBtn').disabled = true;
-        }
-        
-        function hideAppliedPromoCode() {
-            document.getElementById('appliedPromoCode').classList.add('hidden');
-            document.getElementById('promoCodeInput').disabled = false;
-            document.getElementById('applyPromoBtn').disabled = false;
-        }
-        
-        // Update cart totals to include promo code discount
+        // Update cart totals with promo code recalculation
         function updateCartTotals() {
             // Recalculate totals based on remaining items
             const items = document.querySelectorAll('.cart-item-enter');
@@ -765,12 +699,29 @@ $savings = $originalTotal - $subtotal;
             const tax = subtotal * TAX_RATE;
             const shipping = totalItems > 0 ? SHIPPING_COST : 0;
             
-            // Get promo code discount
-            const appliedPromoCode = document.getElementById('appliedPromoCode');
+            // Recalculate promo code discount if applied
             let promoDiscount = 0;
-            if (!appliedPromoCode.classList.contains('hidden')) {
-                const discountText = document.getElementById('appliedPromoDiscount').textContent;
-                promoDiscount = parseFloat(discountText.replace(/[^0-9.]/g, ''));
+            if (APPLIED_PROMO_CODE) {
+                // Calculate new discount based on current subtotal
+                if (APPLIED_PROMO_CODE.type === 'percentage') {
+                    promoDiscount = subtotal * (APPLIED_PROMO_CODE.value / 100);
+                    if (APPLIED_PROMO_CODE.max_discount) {
+                        promoDiscount = Math.min(promoDiscount, APPLIED_PROMO_CODE.max_discount);
+                    }
+                } else if (APPLIED_PROMO_CODE.type === 'fixed_amount') {
+                    promoDiscount = APPLIED_PROMO_CODE.value;
+                }
+                
+                // Ensure promoDiscount is a valid number
+                if (isNaN(promoDiscount) || promoDiscount === null || promoDiscount === undefined) {
+                    promoDiscount = 0;
+                }
+                
+                // Update the applied promo code discount
+                APPLIED_PROMO_CODE.discount_amount = promoDiscount;
+                
+                // Update the displayed promo discount
+                updateAppliedPromoCodeDisplay(promoDiscount);
             }
             
             const total = subtotal + tax + shipping - promoDiscount;
@@ -803,13 +754,17 @@ $savings = $originalTotal - $subtotal;
                 }
                 
                 // Update promo discount
-                const promoDiscountRow = document.getElementById('promoDiscountRow');
-                const promoDiscountAmount = document.getElementById('promoDiscountAmount');
-                if (promoDiscount > 0) {
-                    promoDiscountRow.classList.remove('hidden');
-                    promoDiscountAmount.textContent = `-${formatPrice(promoDiscount)}`;
-                } else {
-                    promoDiscountRow.classList.add('hidden');
+                const promoDiscountRow = summaryElement.querySelector('.flex.justify-between.text-green-600.font-semibold');
+                if (promoDiscountRow) {
+                    if (promoDiscount > 0 && !isNaN(promoDiscount)) {
+                        promoDiscountRow.classList.remove('hidden');
+                        const promoDiscountAmount = promoDiscountRow.querySelector('span:last-child');
+                        if (promoDiscountAmount) {
+                            promoDiscountAmount.textContent = `-${formatPrice(promoDiscount)}`;
+                        }
+                    } else {
+                        promoDiscountRow.classList.add('hidden');
+                    }
                 }
                 
                 // Update total
@@ -817,6 +772,135 @@ $savings = $originalTotal - $subtotal;
                 if (totalElement) {
                     totalElement.textContent = formatPrice(total);
                 }
+            }
+        }
+        
+        function formatPrice(amount) {
+            // Ensure amount is a number and handle null/undefined
+            if (amount === null || amount === undefined || isNaN(amount)) {
+                return '0.000 DTN';
+            }
+            const numAmount = parseFloat(amount);
+            if (isNaN(numAmount)) {
+                return '0.000 DTN';
+            }
+            return numAmount.toFixed(3) + ' DTN';
+        }
+        
+        // Promo Code Functions
+        function applyPromoCode() {
+            console.log('applyPromoCode called');
+            const code = document.getElementById('promoCodeInput').value.trim();
+            console.log('Promo code:', code);
+            
+            if (!code) {
+                showNotification('Please enter a promo code', 'error');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('action', 'apply_promo_code');
+            formData.append('code', code);
+            
+            console.log('Sending request to cart_handler.php');
+            
+            fetch('cart_handler.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                console.log('Response received:', response);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.text().then(text => {
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        console.error('Invalid JSON response:', text);
+                        throw new Error('Invalid JSON response from server');
+                    }
+                });
+            })
+            .then(data => {
+                console.log('Data received:', data);
+                if (data.success) {
+                    APPLIED_PROMO_CODE = data.promo_code;
+                    APPLIED_PROMO_CODE.discount_amount = data.discount_amount;
+                    showAppliedPromoCode(data.promo_code, data.discount_amount);
+                    updateCartTotals();
+                    showNotification(data.message, 'success');
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error applying promo code:', error);
+                showNotification('Network error. Please try again.', 'error');
+            });
+        }
+        
+        function removePromoCode() {
+            const formData = new FormData();
+            formData.append('action', 'remove_promo_code');
+            
+            fetch('cart_handler.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.text().then(text => {
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        console.error('Invalid JSON response:', text);
+                        throw new Error('Invalid JSON response from server');
+                    }
+                });
+            })
+            .then(data => {
+                if (data.success) {
+                    APPLIED_PROMO_CODE = null;
+                    hideAppliedPromoCode();
+                    updateCartTotals();
+                    showNotification(data.message, 'success');
+                }
+            })
+            .catch(error => {
+                console.error('Error removing promo code:', error);
+                showNotification('Network error. Please try again.', 'error');
+            });
+        }
+        
+        function showAppliedPromoCode(promoCode, discountAmount) {
+            document.getElementById('appliedPromoCode').classList.remove('hidden');
+            document.getElementById('appliedPromoName').textContent = promoCode.name;
+            if (discountAmount !== null && discountAmount !== undefined) {
+                document.getElementById('appliedPromoDiscount').textContent = `-${formatPrice(discountAmount)}`;
+            }
+            document.getElementById('promoCodeInput').value = '';
+            document.getElementById('promoCodeInput').disabled = true;
+            document.getElementById('applyPromoBtn').disabled = true;
+        }
+        
+        function hideAppliedPromoCode() {
+            document.getElementById('appliedPromoCode').classList.add('hidden');
+            document.getElementById('promoCodeInput').disabled = false;
+            document.getElementById('applyPromoBtn').disabled = false;
+        }
+        
+        function updateAppliedPromoCodeDisplay(newDiscount) {
+            console.log('updateAppliedPromoCodeDisplay called with:', newDiscount);
+            const discountElement = document.getElementById('appliedPromoDiscount');
+            if (discountElement && newDiscount !== null && newDiscount !== undefined) {
+                const formattedDiscount = formatPrice(newDiscount);
+                discountElement.textContent = `-${formattedDiscount}`;
+                console.log('Updated discount element to:', `-${formattedDiscount}`);
+            } else {
+                console.log('Discount element not found or invalid discount value');
             }
         }
         

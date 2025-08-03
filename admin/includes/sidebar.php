@@ -95,6 +95,8 @@ $currentPage = $currentPage ?? 'dashboard';
             <span class="font-medium">Promo Codes</span>
         </a>
         
+
+        
         <!-- Website Settings -->
         <a href="setting.php" class="menu-item flex items-center space-x-3 px-4 py-3 text-white rounded-lg <?php echo $currentPage === 'settings' ? 'active' : ''; ?>">
             <svg class="menu-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

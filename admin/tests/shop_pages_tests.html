@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shop Pages - Client Side Unit Tests</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .test-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            padding: 8px 12px;
+            margin: 4px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .test-pass {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .test-fail {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .test-skip {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .page-test {
+            background: #e3f2fd;
+            border: 1px solid #bbdefb;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 6px;
+        }
+        .test-controls {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #28a745;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-900 mb-8">Shop Pages - Client Side Unit Tests</h1>
+        
+        <div class="test-controls">
+            <h2 class="text-xl font-semibold mb-4">Test Controls</h2>
+            <button onclick="runAllShopTests()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mr-2">
+                Run All Shop Tests
+            </button>
+            <button onclick="runSpecificPageTest()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 mr-2">
+                Run Specific Page Test
+            </button>
+            <button onclick="clearResults()" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">
+                Clear Results
+            </button>
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Select Page to Test:</label>
+                <select id="pageSelect" class="border border-gray-300 rounded px-3 py-2">
+                    <option value="all">All Pages</option>
+                    <option value="home">HOME (index.php)</option>
+                    <option value="shop">SHOP (shop.php)</option>
+                    <option value="collections">COLLECTIONS (collections.php)</option>
+                    <option value="secret-collection">SECRET COLLECTION (secret-collection.php)</option>
+                    <option value="about">ABOUT US (about.php)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="progress-bar">
+            <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+        </div>
+
+        <div id="test-results"></div>
+    </div>
+
+    <script>
+        // Test results storage
+        let testResults = [];
+        let passedTests = 0;
+        let failedTests = 0;
+        let totalTests = 0;
+
+        // Mock functions for testing
+        function mockFetch(url, options = {}) {
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    // Simulate different responses based on URL
+                    if (url.includes('add_to_cart')) {
+                        resolve({
+                            ok: true,
+                            json: () => Promise.resolve({ success: true, message: 'Product added to cart' })
+                        });
+                    } else if (url.includes('ajax_handler')) {
+                        resolve({
+                            ok: true,
+                            json: () => Promise.resolve({ success: true, message: 'AJAX request successful' })
+                        });
+                    } else {
+                        resolve({
+                            ok: true,
+                            text: () => Promise.resolve('<html><body>Mock page content</body></html>')
+                        });
+                    }
+                }, 100);
+            });
+        }
+
+        // Mock localStorage
+        const mockLocalStorage = {
+            getItem: (key) => {
+                const data = {
+                    'cart': JSON.stringify([{ id: 1, name: 'Test Product', price: 100, quantity: 1 }]),
+                    'wishlist': JSON.stringify([1, 2, 3]),
+                    'user_preferences': JSON.stringify({ theme: 'dark', currency: 'DTN' })
+                };
+                return data[key] || null;
+            },
+            setItem: (key, value) => {
+                console.log(`Setting ${key}: ${value}`);
+                return true;
+            },
+            removeItem: (key) => {
+                console.log(`Removing ${key}`);
+                return true;
+            }
+        };
+
+        // Mock sessionStorage
+        const mockSessionStorage = {
+            getItem: (key) => {
+                const data = {
+                    'session_id': 'mock_session_123',
+                    'user_data': JSON.stringify({ id: 1, name: 'Test User' })
+                };
+                return data[key] || null;
+            },
+            setItem: (key, value) => {
+                console.log(`Setting session ${key}: ${value}`);
+                return true;
+            }
+        };
+
+        // Override global objects for testing
+        window.fetch = mockFetch;
+        window.localStorage = mockLocalStorage;
+        window.sessionStorage = mockSessionStorage;
+
+        // Test functions for each page
+        const pageTests = {
+            home: {
+                name: 'HOME (index.php)',
+                tests: [
+                    {
+                        name: 'Page Load Test',
+                        test: () => {
+                            return new Promise((resolve) => {
+                                mockFetch('index.php').then(response => {
+                                    resolve(response.ok);
+                                });
+                            });
+                        }
+                    },
+                    {
+                        name: 'Hero Section Test',
+                        test: () => {
+                            const heroSection = document.querySelector('.hero-section') || 
+                                             document.querySelector('.hero') || 
+                                             document.querySelector('.banner');
+                            return Promise.resolve(heroSection !== null);
+                        }
+                    },
+                    {
+                        name: 'Featured Products Test',
+                        test: () => {
+                            const featuredProducts = document.querySelectorAll('.featured-product, .product-card, .product-item');
+                            return Promise.resolve(featuredProducts.length > 0);
+                        }
+                    },
+                    {
+                        name: 'Navigation Menu Test',
+                        test: () => {
+                            const navMenu = document.querySelector('nav, .navbar, .navigation');
+                            return Promise.resolve(navMenu !== null);
+                        }
+                    },
+                    {
+                        name: 'Footer Test',
+                        test: () => {
+                            const footer = document.querySelector('footer');
+                            return Promise.resolve(footer !== null);
+                        }
+                    },
+                    {
+                        name: 'Search Functionality Test',
+                        test: () => {
+                            const searchInput = document.querySelector('input[type="search"], .search-input');
+                            return Promise.resolve(searchInput !== null);
+                        }
+                    },
+                    {
+                        name: 'Cart Icon Test',
+                        test: () => {
+                            const cartIcon = document.querySelector('.cart-icon, .shopping-cart, [data-cart]');
+                            return Promise.resolve(cartIcon !== null);
+                        }
+                    },
+                    {
+                        name: 'Responsive Design Test',
+                        test: () => {
+                            const viewport = document.querySelector('meta[name="viewport"]');
+                            return Promise.resolve(viewport !== null);
+                        }
+                    }
+                ]
+            },
+            shop: {
+                name: 'SHOP (shop.php)',
+                tests: [
+                    {
+                        name: 'Product Grid Test',
+                        test: () => {
+                            const productGrid = document.querySelector('.product-grid, .products-container, .shop-products');
+                            return Promise.resolve(productGrid !== null);
+                        }
+                    },
+                    {
+                        name: 'Product Filter Test',
+                        test: () => {
+                            const filters = document.querySelectorAll('.filter, .category-filter, .price-filter');
+                            return Promise.resolve(filters.length > 0);
+                        }
+                    },
+                    {
+                        name: 'Product Sorting Test',
+                        test: () => {
+                            const sortSelect = document.querySelector('select[name="sort"], .sort-select');
+                            return Promise.resolve(sortSelect !== null);
+                        }
+                    },
+                    {
+                        name: 'Add to Cart Button Test',
+                        test: () => {
+                            const addToCartButtons = document.querySelectorAll('.add-to-cart, [data-add-to-cart]');
+                            return Promise.resolve(addToCartButtons.length > 0);
+                        }
+                    },
+                    {
+                        name: 'Product Image Test',
+                        test: () => {
+                            const productImages = document.querySelectorAll('.product-image, .product-img');
+                            return Promise.resolve(productImages.length > 0);
+                        }
+                    },
+                    {
+                        name: 'Product Price Test',
+                        test: () => {
+                            const productPrices = document.querySelectorAll('.product-price, .price');
+                            return Promise.resolve(productPrices.length > 0);
+                        }
+                    },
+                    {
+                        name: 'Pagination Test',
+                        test: () => {
+                            const pagination = document.querySelector('.pagination, .page-numbers');
+                            return Promise.resolve(pagination !== null);
+                        }
+                    },
+                    {
+                        name: 'Wishlist Functionality Test',
+                        test: () => {
+                            const wishlistButtons = document.querySelectorAll('.wishlist-btn, .favorite-btn');
+                            return Promise.resolve(wishlistButtons.length > 0);
+                        }
+                    }
+                ]
+            },
+            collections: {
+                name: 'COLLECTIONS (collections.php)',
+                tests: [
+                    {
+                        name: 'Collection Grid Test',
+                        test: () => {
+                            const collectionGrid = document.querySelector('.collection-grid, .collections-container');
+                            return Promise.resolve(collectionGrid !== null);
+                        }
+                    },
+                    {
+                        name: 'Collection Card Test',
+                        test: () => {
+                            const collectionCards = document.querySelectorAll('.collection-card, .collection-item');
+                            return Promise.resolve(collectionCards.length > 0);
+                        }
+                    },
+                    {
+                        name: 'Collection Image Test',
+                        test: () => {
+                            const collectionImages = document.querySelectorAll('.collection-image, .collection-img');
+                            return Promise.resolve(collectionImages.length > 0);
+                        }
+                    },
+                    {
+                        name: 'Collection Title Test',
+                        test: () => {
+                            const collectionTitles = document.querySelectorAll('.collection-title, .collection-name');
+                            return Promise.resolve(collectionTitles.length > 0);
+                        }
+                    },
+                    {
+                        name: 'Collection Link Test',
+                        test: () => {
+                            const collectionLinks = document.querySelectorAll('a[href*="collection"], .collection-link');
+                            return Promise.resolve(collectionLinks.length > 0);
+                        }
+                    }
+                ]
+            },
+            'secret-collection': {
+                name: 'SECRET COLLECTION (secret-collection.php)',
+                tests: [
+                    {
+                        name: 'Secret Access Test',
+                        test: () => {
+                            const secretForm = document.querySelector('form[action*="secret"], .secret-form');
+                            return Promise.resolve(secretForm !== null);
+                        }
+                    },
+                    {
+                        name: 'Password Protection Test',
+                        test: () => {
+                            const passwordInput = document.querySelector('input[type="password"], .secret-password');
+                            return Promise.resolve(passwordInput !== null);
+                        }
+                    },
+                    {
+                        name: 'Secret Products Test',
+                        test: () => {
+                            const secretProducts = document.querySelectorAll('.secret-product, .exclusive-product');
+                            return Promise.resolve(secretProducts.length > 0);
+                        }
+                    },
+                    {
+                        name: 'Access Control Test',
+                        test: () => {
+                            const accessControl = document.querySelector('.access-control, .secret-access');
+                            return Promise.resolve(accessControl !== null);
+                        }
+                    }
+                ]
+            },
+            about: {
+                name: 'ABOUT US (about.php)',
+                tests: [
+                    {
+                        name: 'About Content Test',
+                        test: () => {
+                            const aboutContent = document.querySelector('.about-content, .about-section');
+                            return Promise.resolve(aboutContent !== null);
+                        }
+                    },
+                    {
+                        name: 'Team Section Test',
+                        test: () => {
+                            const teamSection = document.querySelector('.team-section, .team-members');
+                            return Promise.resolve(teamSection !== null);
+                        }
+                    },
+                    {
+                        name: 'Company Info Test',
+                        test: () => {
+                            const companyInfo = document.querySelector('.company-info, .about-info');
+                            return Promise.resolve(companyInfo !== null);
+                        }
+                    },
+                    {
+                        name: 'Contact Information Test',
+                        test: () => {
+                            const contactInfo = document.querySelector('.contact-info, .contact-details');
+                            return Promise.resolve(contactInfo !== null);
+                        }
+                    },
+                    {
+                        name: 'About Images Test',
+                        test: () => {
+                            const aboutImages = document.querySelectorAll('.about-image, .about-img');
+                            return Promise.resolve(aboutImages.length > 0);
+                        }
+                    }
+                ]
+            }
+        };
+
+        // Common functionality tests
+        const commonTests = [
+            {
+                name: 'JavaScript Loading Test',
+                test: () => {
+                    return Promise.resolve(typeof window !== 'undefined' && typeof document !== 'undefined');
+                }
+            },
+            {
+                name: 'CSS Loading Test',
+                test: () => {
+                    const stylesheets = document.querySelectorAll('link[rel="stylesheet"]');
+                    return Promise.resolve(stylesheets.length > 0);
+                }
+            },
+            {
+                name: 'Meta Tags Test',
+                test: () => {
+                    const metaTags = document.querySelectorAll('meta');
+                    return Promise.resolve(metaTags.length > 0);
+                }
+            },
+            {
+                name: 'Title Tag Test',
+                test: () => {
+                    const title = document.querySelector('title');
+                    return Promise.resolve(title !== null && title.textContent.trim() !== '');
+                }
+            },
+            {
+                name: 'Favicon Test',
+                test: () => {
+                    const favicon = document.querySelector('link[rel="icon"], link[rel="shortcut icon"]');
+                    return Promise.resolve(favicon !== null);
+                }
+            },
+            {
+                name: 'Cart Functionality Test',
+                test: () => {
+                    const cartData = localStorage.getItem('cart');
+                    return Promise.resolve(cartData !== null);
+                }
+            },
+            {
+                name: 'Session Management Test',
+                test: () => {
+                    const sessionData = sessionStorage.getItem('session_id');
+                    return Promise.resolve(sessionData !== null);
+                }
+            },
+            {
+                name: 'AJAX Capability Test',
+                test: () => {
+                    return Promise.resolve(typeof fetch !== 'undefined');
+                }
+            },
+            {
+                name: 'Responsive Design Test',
+                test: () => {
+                    const viewport = document.querySelector('meta[name="viewport"]');
+                    return Promise.resolve(viewport !== null);
+                }
+            },
+            {
+                name: 'Error Handling Test',
+                test: () => {
+                    return Promise.resolve(typeof window.onerror !== 'undefined');
+                }
+            }
+        ];
+
+        // Test runner functions
+        async function runPageTests(pageKey) {
+            const page = pageTests[pageKey];
+            if (!page) {
+                addTestResult(`Page ${pageKey} not found`, false, 'Invalid page key');
+                return;
+            }
+
+            console.log(`Running tests for ${page.name}...`);
+            
+            // Run common tests first
+            for (const test of commonTests) {
+                try {
+                    const result = await test.test();
+                    addTestResult(`${page.name} - ${test.name}`, result);
+                } catch (error) {
+                    addTestResult(`${page.name} - ${test.name}`, false, error.message);
+                }
+            }
+
+            // Run page-specific tests
+            for (const test of page.tests) {
+                try {
+                    const result = await test.test();
+                    addTestResult(`${page.name} - ${test.name}`, result);
+                } catch (error) {
+                    addTestResult(`${page.name} - ${test.name}`, false, error.message);
+                }
+            }
+        }
+
+        async function runAllShopTests() {
+            clearResults();
+            const selectedPage = document.getElementById('pageSelect').value;
+            
+            if (selectedPage === 'all') {
+                for (const pageKey in pageTests) {
+                    await runPageTests(pageKey);
+                }
+            } else {
+                await runPageTests(selectedPage);
+            }
+            
+            updateProgress();
+            displaySummary();
+        }
+
+        async function runSpecificPageTest() {
+            const selectedPage = document.getElementById('pageSelect').value;
+            if (selectedPage === 'all') {
+                alert('Please select a specific page to test');
+                return;
+            }
+            
+            clearResults();
+            await runPageTests(selectedPage);
+            updateProgress();
+            displaySummary();
+        }
+
+        function addTestResult(testName, passed, message = '') {
+            const result = {
+                name: testName,
+                passed: passed,
+                message: message,
+                timestamp: new Date().toISOString()
+            };
+            
+            testResults.push(result);
+            
+            if (passed) {
+                passedTests++;
+            } else {
+                failedTests++;
+            }
+            
+            totalTests++;
+            
+            displayTestResult(result);
+        }
+
+        function displayTestResult(result) {
+            const resultsDiv = document.getElementById('test-results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${result.passed ? 'test-pass' : 'test-fail'}`;
+            
+            let resultText = `${result.passed ? '✅' : '❌'} ${result.name}`;
+            if (result.message) {
+                resultText += ` - ${result.message}`;
+            }
+            
+            resultDiv.textContent = resultText;
+            resultsDiv.appendChild(resultDiv);
+        }
+
+        function clearResults() {
+            testResults = [];
+            passedTests = 0;
+            failedTests = 0;
+            totalTests = 0;
+            document.getElementById('test-results').innerHTML = '';
+            document.getElementById('progressFill').style.width = '0%';
+        }
+
+        function updateProgress() {
+            const progress = totalTests > 0 ? (passedTests / totalTests) * 100 : 0;
+            document.getElementById('progressFill').style.width = `${progress}%`;
+        }
+
+        function displaySummary() {
+            const resultsDiv = document.getElementById('test-results');
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'test-section';
+            
+            const successRate = totalTests > 0 ? ((passedTests / totalTests) * 100).toFixed(1) : 0;
+            
+            summaryDiv.innerHTML = `
+                <h3 class="text-lg font-semibold mb-4">Test Summary</h3>
+                <p><strong>Total Tests:</strong> ${totalTests}</p>
+                <p><strong>Passed:</strong> ${passedTests}</p>
+                <p><strong>Failed:</strong> ${failedTests}</p>
+                <p><strong>Success Rate:</strong> ${successRate}%</p>
+                
+                ${failedTests > 0 ? `
+                    <h4 class="font-semibold mt-4 mb-2">Failed Tests:</h4>
+                    <ul class="list-disc pl-5">
+                        ${testResults.filter(r => !r.passed).map(r => `<li>${r.name}${r.message ? ` - ${r.message}` : ''}</li>`).join('')}
+                    </ul>
+                ` : '<p class="text-green-600 font-semibold mt-4">✅ All tests passed!</p>'}
+            `;
+            
+            resultsDiv.appendChild(summaryDiv);
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Shop Pages Test Suite loaded');
+        });
+    </script>
+</body>
+</html> 

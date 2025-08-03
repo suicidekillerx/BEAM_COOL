@@ -174,15 +174,15 @@ document.addEventListener('DOMContentLoaded', () => {
         let showingText = true;
 
         function glitchSwap() {
-            brandLogo.classList.add('glitching');
+            if (brandLogo && brandLogo.classList) brandLogo.classList.add('glitching');
             setTimeout(() => {
-                brandLogo.classList.remove('glitching');
+                if (brandLogo && brandLogo.classList) brandLogo.classList.remove('glitching');
                 if (showingText) {
-                    brandText.classList.add('hidden');
-                    brandImg.classList.remove('hidden');
+                    if (brandText && brandText.classList) brandText.classList.add('hidden');
+                    if (brandImg && brandImg.classList) brandImg.classList.remove('hidden');
                 } else {
-                    brandText.classList.remove('hidden');
-                    brandImg.classList.add('hidden');
+                    if (brandText && brandText.classList) brandText.classList.remove('hidden');
+                    if (brandImg && brandImg.classList) brandImg.classList.add('hidden');
                 }
                 showingText = !showingText;
             }, 600);
@@ -372,7 +372,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             const result = JSON.parse(response);
                             if (result.success) {
                                 // Show success message
-                                alert('Added to cart successfully!');
+                                let message = 'Added to cart successfully!';
+                                
+                                // Handle promo code updates
+                                if (result.promo_removed) {
+                                    message = result.message || 'Added to cart. Promo code removed due to cart changes.';
+                                } else if (result.promo_updated) {
+                                    message = result.message || 'Added to cart successfully!';
+                                }
+                                
+                                alert(message);
                                 
                                 // Check if auto_open_cart is enabled
                                 if (result.auto_open_cart) {

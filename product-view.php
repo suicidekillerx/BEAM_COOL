@@ -595,8 +595,15 @@ if (!$product) {
                         // Update cart count in real-time
                         updateCartCount();
                         
-                        // Show success notification
-                        showNotification('Item added to cart successfully!', 'success');
+                        // Show success notification with promo code handling
+                        let message = 'Item added to cart successfully!';
+                        if (response.promo_removed) {
+                            message = response.message || 'Added to cart. Promo code removed due to cart changes.';
+                        } else if (response.promo_updated) {
+                            message = response.message || 'Item added to cart successfully!';
+                        }
+                        
+                        showNotification(message, response.promo_removed ? 'info' : 'success');
                         
                         // Check if auto_open_cart is enabled and redirect to cart
                         if (response.auto_open_cart) {
@@ -731,15 +738,6 @@ if (!$product) {
         $(window).resize(function() {
             if (window.innerWidth >= 768) {
                 $('.accordion-content').show();
-            } else {
-                $('.accordion-content').hide();
-            }
-        });
-    });
-    </script>
-
-</body>
-</html>
             } else {
                 $('.accordion-content').hide();
             }

@@ -1,6 +1,9 @@
 <?php
-session_start();
+require_once 'includes/auth.php';
 require_once '../includes/functions.php';
+
+// Check if user is logged in
+requireAuth();
 
 $currentPage = 'products';
 $pageTitle = 'Products';
@@ -308,7 +311,7 @@ function createSlug($string) {
         }
     </style>
 </head>
-<body class="bg-gray-50 font-['Inter']">
+<body class="bg-gray-50 font-['Inter']" data-current-page="products">
     <!-- Mobile Sidebar Overlay -->
     <div id="sidebarOverlay" class="sidebar-overlay fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden hidden"></div>
     
@@ -1371,6 +1374,31 @@ function createSlug($string) {
         let filteredProducts = [...allProducts];
         let currentViewMode = 'grid';
         
+        // Prevent form resubmission warnings
+        if (window.history.replaceState) {
+            window.history.replaceState(null, null, window.location.href);
+        }
+        
+        // Clear form data after successful submission
+        document.addEventListener('DOMContentLoaded', function() {
+            // Handle form submissions
+            const forms = document.querySelectorAll('form');
+            forms.forEach(form => {
+                form.addEventListener('submit', function() {
+                    // Store form data in sessionStorage to prevent resubmission
+                    const formData = new FormData(form);
+                    const formObject = {};
+                    formData.forEach((value, key) => {
+                        formObject[key] = value;
+                    });
+                    sessionStorage.setItem('formData', JSON.stringify(formObject));
+                });
+            });
+            
+            // Clear form data on page load
+            sessionStorage.removeItem('formData');
+        });
+        
         // Modal functions
         function openAddModal() {
             document.getElementById('addModal').classList.add('show');
@@ -1963,7 +1991,7 @@ function createSlug($string) {
                         container.innerHTML = `
                             <div class="text-center p-4 bg-gray-100 rounded">
                                 <svg class="w-8 h-8 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                                 </svg>
                                 <p class="text-xs text-gray-500">No images found</p>
                             </div>
@@ -2505,5 +2533,6 @@ function createSlug($string) {
             });
         }
     </script>
+    <script src="js/admin-common.js"></script>
 </body>
 </html> 

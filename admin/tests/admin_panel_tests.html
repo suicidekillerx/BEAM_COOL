@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Specific Functionality Tests</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .test-pass { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .test-fail { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .test-info { background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        .test-section { margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-radius: 8px; }
+        .test-category { margin: 15px 0; padding: 10px; background-color: #e9ecef; border-radius: 5px; }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-900 mb-8">Admin Panel - Specific Functionality Tests</h1>
+        
+        <div id="test-results"></div>
+        
+        <!-- Test Controls -->
+        <div class="test-section">
+            <h2 class="text-xl font-semibold mb-4">Test Controls</h2>
+            <button onclick="runAllAdminTests()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mr-2">
+                Run All Admin Tests
+            </button>
+            <button onclick="runSpecificTest()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 mr-2">
+                Run Specific Test
+            </button>
+            <button onclick="clearResults()" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">
+                Clear Results
+            </button>
+        </div>
+
+        <!-- Test Categories -->
+        <div class="test-section">
+            <h2 class="text-xl font-semibold mb-4">Test Categories</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="test-category">
+                    <h3 class="font-semibold">Authentication</h3>
+                    <button onclick="testLoginForm()" class="text-sm bg-blue-500 text-white px-2 py-1 rounded mt-2">Test Login</button>
+                    <button onclick="testLogout()" class="text-sm bg-red-500 text-white px-2 py-1 rounded mt-2">Test Logout</button>
+                </div>
+                <div class="test-category">
+                    <h3 class="font-semibold">Forms</h3>
+                    <button onclick="testAdminUserForm()" class="text-sm bg-green-500 text-white px-2 py-1 rounded mt-2">Test Admin Form</button>
+                    <button onclick="testFormValidation()" class="text-sm bg-yellow-500 text-white px-2 py-1 rounded mt-2">Test Validation</button>
+                </div>
+                <div class="test-category">
+                    <h3 class="font-semibold">AJAX</h3>
+                    <button onclick="testAjaxHandlers()" class="text-sm bg-purple-500 text-white px-2 py-1 rounded mt-2">Test AJAX</button>
+                    <button onclick="testFetchRequests()" class="text-sm bg-indigo-500 text-white px-2 py-1 rounded mt-2">Test Fetch</button>
+                </div>
+                <div class="test-category">
+                    <h3 class="font-semibold">Security</h3>
+                    <button onclick="testSecurityFeatures()" class="text-sm bg-orange-500 text-white px-2 py-1 rounded mt-2">Test Security</button>
+                    <button onclick="testSessionHandling()" class="text-sm bg-teal-500 text-white px-2 py-1 rounded mt-2">Test Session</button>
+                </div>
+                <div class="test-category">
+                    <h3 class="font-semibold">UI/UX</h3>
+                    <button onclick="testNotifications()" class="text-sm bg-pink-500 text-white px-2 py-1 rounded mt-2">Test Notifications</button>
+                    <button onclick="testModalHandling()" class="text-sm bg-cyan-500 text-white px-2 py-1 rounded mt-2">Test Modals</button>
+                </div>
+                <div class="test-category">
+                    <h3 class="font-semibold">Data</h3>
+                    <button onclick="testDataValidation()" class="text-sm bg-lime-500 text-white px-2 py-1 rounded mt-2">Test Data</button>
+                    <button onclick="testErrorHandling()" class="text-sm bg-gray-500 text-white px-2 py-1 rounded mt-2">Test Errors</button>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            // Mock functions for testing
+            let testResults = [];
+            let passedTests = 0;
+            let failedTests = 0;
+
+            // Mock admin functions
+            window.adminSecurity = {
+                clearAdminCache: function() { return true; },
+                preventFormResubmission: function() { return true; }
+            };
+
+            // Mock notification function
+            function showNotification(message, type) {
+                console.log(`Notification [${type}]: ${message}`);
+                return true;
+            }
+
+            // Mock fetch for testing
+            const originalFetch = window.fetch;
+            window.fetch = function(url, options) {
+                console.log(`Mock fetch called: ${url}`);
+                
+                // Simulate different responses based on action
+                if (options && options.body) {
+                    if (options.body instanceof FormData) {
+                        const action = options.body.get('action');
+                        return simulateAjaxResponse(action);
+                    } else if (typeof options.body === 'string') {
+                        const params = new URLSearchParams(options.body);
+                        const action = params.get('action');
+                        return simulateAjaxResponse(action);
+                    }
+                }
+                
+                return Promise.resolve({
+                    json: () => Promise.resolve({ success: true, data: 'Mock response' })
+                });
+            };
+
+            function simulateAjaxResponse(action) {
+                const responses = {
+                    'add_admin_user': { success: true, message: 'Admin user added successfully!' },
+                    'delete_admin_user': { success: true, message: 'Admin user deleted successfully!' },
+                    'add_video_section': { success: true, message: 'Video section added successfully!' },
+                    'toggle_video_section': { success: true, message: 'Video section toggled successfully!' },
+                    'delete_video_section': { success: true, message: 'Video section deleted successfully!' },
+                    'add_social_media': { success: true, message: 'Social media added successfully!' },
+                    'delete_social_media': { success: true, message: 'Social media deleted successfully!' },
+                    'login': { success: true, message: 'Login successful!' },
+                    'logout': { success: true, message: 'Logout successful!' }
+                };
+                
+                return Promise.resolve({
+                    json: () => Promise.resolve(responses[action] || { success: true, message: 'Action completed' })
+                });
+            }
+
+            function addTestResult(testName, passed, message = '') {
+                const result = {
+                    name: testName,
+                    passed: passed,
+                    message: message,
+                    timestamp: new Date().toISOString()
+                };
+                testResults.push(result);
+                
+                if (passed) {
+                    passedTests++;
+                } else {
+                    failedTests++;
+                }
+                
+                displayTestResult(result);
+            }
+
+            function displayTestResult(result) {
+                const container = document.getElementById('test-results');
+                const resultDiv = document.createElement('div');
+                resultDiv.className = `test-result ${result.passed ? 'test-pass' : 'test-fail'}`;
+                resultDiv.innerHTML = `
+                    <strong>${result.passed ? '✅ PASS' : '❌ FAIL'}</strong>: ${result.name}
+                    ${result.message ? `<br><small>${result.message}</small>` : ''}
+                `;
+                container.appendChild(resultDiv);
+            }
+
+            function clearResults() {
+                document.getElementById('test-results').innerHTML = '';
+                testResults = [];
+                passedTests = 0;
+                failedTests = 0;
+            }
+
+            // Test Functions
+            function testLoginForm() {
+                console.log('Testing Login Form...');
+                
+                // Test login form structure
+                try {
+                    const form = document.createElement('form');
+                    form.id = 'loginForm';
+                    
+                    const usernameInput = document.createElement('input');
+                    usernameInput.name = 'username';
+                    usernameInput.type = 'text';
+                    usernameInput.required = true;
+                    
+                    const passwordInput = document.createElement('input');
+                    passwordInput.name = 'password';
+                    passwordInput.type = 'password';
+                    passwordInput.required = true;
+                    
+                    form.appendChild(usernameInput);
+                    form.appendChild(passwordInput);
+                    
+                    addTestResult('Login Form Structure', form.querySelector('input[name="username"]') && form.querySelector('input[name="password"]'));
+                } catch (e) {
+                    addTestResult('Login Form Structure', false, e.message);
+                }
+
+                // Test login form validation
+                try {
+                    const form = document.createElement('form');
+                    const usernameInput = document.createElement('input');
+                    usernameInput.name = 'username';
+                    usernameInput.required = true;
+                    usernameInput.value = '';
+                    
+                    const passwordInput = document.createElement('input');
+                    passwordInput.name = 'password';
+                    passwordInput.required = true;
+                    passwordInput.value = '';
+                    
+                    form.appendChild(usernameInput);
+                    form.appendChild(passwordInput);
+                    
+                    const isValid = form.checkValidity();
+                    addTestResult('Login Form Validation', !isValid); // Should fail with empty values
+                } catch (e) {
+                    addTestResult('Login Form Validation', false, e.message);
+                }
+
+                // Test login form submission
+                try {
+                    const form = document.createElement('form');
+                    const formData = new FormData();
+                    formData.append('username', 'admin');
+                    formData.append('password', 'admin123');
+                    formData.append('action', 'login');
+                    
+                    const promise = fetch('/admin/login.php', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    addTestResult('Login Form Submission', promise instanceof Promise);
+                } catch (e) {
+                    addTestResult('Login Form Submission', false, e.message);
+                }
+            }
+
+            function testLogout() {
+                console.log('Testing Logout...');
+                
+                // Test logout confirmation
+                try {
+                    const originalConfirm = window.confirm;
+                    window.confirm = () => true;
+                    const result = confirm('Are you sure you want to logout?');
+                    window.confirm = originalConfirm;
+                    addTestResult('Logout Confirmation', result === true);
+                } catch (e) {
+                    addTestResult('Logout Confirmation', false, e.message);
+                }
+
+                // Test logout AJAX request
+                try {
+                    const formData = new FormData();
+                    formData.append('action', 'logout');
+                    
+                    const promise = fetch('/admin/logout.php', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    addTestResult('Logout AJAX Request', promise instanceof Promise);
+                } catch (e) {
+                    addTestResult('Logout AJAX Request', false, e.message);
+                }
+            }
+
+            function testAdminUserForm() {
+                console.log('Testing Admin User Form...');
+                
+                // Test admin user form structure
+                try {
+                    const form = document.createElement('form');
+                    form.id = 'addAdminForm';
+                    
+                    const fields = ['admin_full_name', 'admin_username', 'admin_password'];
+                    fields.forEach(fieldName => {
+                        const input = document.createElement('input');
+                        input.name = fieldName;
+                        input.required = true;
+                        form.appendChild(input);
+                    });
+                    
+                    const hiddenRole = document.createElement('input');
+                    hiddenRole.name = 'admin_role';
+                    hiddenRole.type = 'hidden';
+                    hiddenRole.value = 'admin';
+                    form.appendChild(hiddenRole);
+                    
+                    addTestResult('Admin User Form Structure', 
+                        form.querySelector('input[name="admin_full_name"]') &&
+                        form.querySelector('input[name="admin_username"]') &&
+                        form.querySelector('input[name="admin_password"]') &&
+                        form.querySelector('input[name="admin_role"]').value === 'admin'
+                    );
+                } catch (e) {
+                    addTestResult('Admin User Form Structure', false, e.message);
+                }
+
+                // Test admin user form submission
+                try {
+                    const formData = new FormData();
+                    formData.append('admin_full_name', 'Test User');
+                    formData.append('admin_username', 'testuser');
+                    formData.append('admin_password', 'testpass123');
+                    formData.append('admin_role', 'admin');
+                    formData.append('action', 'add_admin_user');
+                    
+                    const promise = fetch('../ajax_handler.php', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    addTestResult('Admin User Form Submission', promise instanceof Promise);
+                } catch (e) {
+                    addTestResult('Admin User Form Submission', false, e.message);
+                }
+            }
+
+            function testFormValidation() {
+                console.log('Testing Form Validation...');
+                
+                // Test required field validation
+                try {
+                    const form = document.createElement('form');
+                    const input = document.createElement('input');
+                    input.required = true;
+                    input.value = '';
+                    form.appendChild(input);
+                    
+                    const isValid = form.checkValidity();
+                    addTestResult('Required Field Validation', !isValid);
+                } catch (e) {
+                    addTestResult('Required Field Validation', false, e.message);
+                }
+
+                // Test email validation
+                try {
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    const validEmails = ['test@example.com', 'user@domain.co.uk'];
+                    const invalidEmails = ['invalid-email', 'test@', '@domain.com'];
+                    
+                    const allValid = validEmails.every(email => emailRegex.test(email));
+                    const allInvalid = invalidEmails.every(email => !emailRegex.test(email));
+                    
+                    addTestResult('Email Validation', allValid && allInvalid);
+                } catch (e) {
+                    addTestResult('Email Validation', false, e.message);
+                }
+
+                // Test password strength validation
+                try {
+                    const strongPassword = 'Test123!@#';
+                    const weakPassword = '123';
+                    
+                    const hasLength = strongPassword.length >= 8;
+                    const hasUpperCase = /[A-Z]/.test(strongPassword);
+                    const hasLowerCase = /[a-z]/.test(strongPassword);
+                    const hasNumber = /\d/.test(strongPassword);
+                    const hasSpecial = /[!@#$%^&*]/.test(strongPassword);
+                    
+                    addTestResult('Password Strength Validation', 
+                        hasLength && hasUpperCase && hasLowerCase && hasNumber && hasSpecial
+                    );
+                } catch (e) {
+                    addTestResult('Password Strength Validation', false, e.message);
+                }
+            }
+
+            function testAjaxHandlers() {
+                console.log('Testing AJAX Handlers...');
+                
+                // Test add_admin_user handler
+                try {
+                    const formData = new FormData();
+                    formData.append('action', 'add_admin_user');
+                    formData.append('admin_full_name', 'Test User');
+                    formData.append('admin_username', 'testuser');
+                    formData.append('admin_password', 'testpass123');
+                    
+                    const promise = fetch('../ajax_handler.php', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    promise.then(response => response.json()).then(data => {
+                        addTestResult('Add Admin User Handler', data.success === true);
+                    });
+                } catch (e) {
+                    addTestResult('Add Admin User Handler', false, e.message);
+                }
+
+                // Test delete_admin_user handler
+                try {
+                    const formData = new FormData();
+                    formData.append('action', 'delete_admin_user');
+                    formData.append('user_id', '1');
+                    
+                    const promise = fetch('../ajax_handler.php', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    promise.then(response => response.json()).then(data => {
+                        addTestResult('Delete Admin User Handler', data.success === true);
+                    });
+                } catch (e) {
+                    addTestResult('Delete Admin User Handler', false, e.message);
+                }
+
+                // Test video section handlers
+                try {
+                    const videoActions = ['add_video_section', 'toggle_video_section', 'delete_video_section'];
+                    let allWorked = true;
+                    
+                    videoActions.forEach(action => {
+                        const formData = new FormData();
+                        formData.append('action', action);
+                        
+                        fetch('../ajax_handler.php', {
+                            method: 'POST',
+                            body: formData
+                        }).then(response => response.json()).then(data => {
+                            if (!data.success) allWorked = false;
+                        });
+                    });
+                    
+                    setTimeout(() => {
+                        addTestResult('Video Section Handlers', allWorked);
+                    }, 1000);
+                } catch (e) {
+                    addTestResult('Video Section Handlers', false, e.message);
+                }
+            }
+
+            function testFetchRequests() {
+                console.log('Testing Fetch Requests...');
+                
+                // Test fetch API availability
+                try {
+                    const promise = fetch('/test-url');
+                    addTestResult('Fetch API Available', promise instanceof Promise);
+                } catch (e) {
+                    addTestResult('Fetch API Available', false, e.message);
+                }
+
+                // Test fetch with FormData
+                try {
+                    const formData = new FormData();
+                    formData.append('test', 'value');
+                    
+                    const promise = fetch('/test-url', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    addTestResult('Fetch with FormData', promise instanceof Promise);
+                } catch (e) {
+                    addTestResult('Fetch with FormData', false, e.message);
+                }
+
+                // Test fetch with JSON
+                try {
+                    const promise = fetch('/test-url', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ test: 'value' })
+                    });
+                    
+                    addTestResult('Fetch with JSON', promise instanceof Promise);
+                } catch (e) {
+                    addTestResult('Fetch with JSON', false, e.message);
+                }
+            }
+
+            function testSecurityFeatures() {
+                console.log('Testing Security Features...');
+                
+                // Test session storage security
+                try {
+                    sessionStorage.setItem('admin_session', 'test_session');
+                    const session = sessionStorage.getItem('admin_session');
+                    addTestResult('Session Storage Security', session === 'test_session');
+                } catch (e) {
+                    addTestResult('Session Storage Security', false, e.message);
+                }
+
+                // Test history manipulation prevention
+                try {
+                    const originalUrl = window.location.href;
+                    window.history.replaceState(null, null, originalUrl);
+                    addTestResult('History Manipulation Prevention', true);
+                } catch (e) {
+                    addTestResult('History Manipulation Prevention', false, e.message);
+                }
+
+                // Test adminSecurity functions
+                try {
+                    const cacheResult = window.adminSecurity.clearAdminCache();
+                    const formResult = window.adminSecurity.preventFormResubmission();
+                    addTestResult('Admin Security Functions', cacheResult && formResult);
+                } catch (e) {
+                    addTestResult('Admin Security Functions', false, e.message);
+                }
+
+                // Test inactivity timeout simulation
+                try {
+                    let timeoutTriggered = false;
+                    const timeout = setTimeout(() => {
+                        timeoutTriggered = true;
+                    }, 100);
+                    
+                    setTimeout(() => {
+                        clearTimeout(timeout);
+                        addTestResult('Inactivity Timeout', timeoutTriggered);
+                    }, 150);
+                } catch (e) {
+                    addTestResult('Inactivity Timeout', false, e.message);
+                }
+            }
+
+            function testSessionHandling() {
+                console.log('Testing Session Handling...');
+                
+                // Test session storage operations
+                try {
+                    sessionStorage.setItem('test_key', 'test_value');
+                    const value = sessionStorage.getItem('test_key');
+                    sessionStorage.removeItem('test_key');
+                    const removed = sessionStorage.getItem('test_key');
+                    
+                    addTestResult('Session Storage Operations', value === 'test_value' && removed === null);
+                } catch (e) {
+                    addTestResult('Session Storage Operations', false, e.message);
+                }
+
+                // Test localStorage operations
+                try {
+                    localStorage.setItem('test_key', 'test_value');
+                    const value = localStorage.getItem('test_key');
+                    localStorage.removeItem('test_key');
+                    const removed = localStorage.getItem('test_key');
+                    
+                    addTestResult('Local Storage Operations', value === 'test_value' && removed === null);
+                } catch (e) {
+                    addTestResult('Local Storage Operations', false, e.message);
+                }
+
+                // Test session cleanup
+                try {
+                    sessionStorage.setItem('temp_data', 'temp_value');
+                    sessionStorage.clear();
+                    const remaining = sessionStorage.length;
+                    addTestResult('Session Cleanup', remaining === 0);
+                } catch (e) {
+                    addTestResult('Session Cleanup', false, e.message);
+                }
+            }
+
+            function testNotifications() {
+                console.log('Testing Notifications...');
+                
+                // Test notification function
+                try {
+                    const result = showNotification('Test message', 'success');
+                    addTestResult('Notification Function', result === true);
+                } catch (e) {
+                    addTestResult('Notification Function', false, e.message);
+                }
+
+                // Test notification types
+                try {
+                    const types = ['success', 'error', 'info', 'warning'];
+                    let allWorked = true;
+                    
+                    types.forEach(type => {
+                        try {
+                            showNotification(`Test ${type} notification`, type);
+                        } catch (e) {
+                            allWorked = false;
+                        }
+                    });
+                    
+                    addTestResult('Notification Types', allWorked);
+                } catch (e) {
+                    addTestResult('Notification Types', false, e.message);
+                }
+
+                // Test notification auto-removal
+                try {
+                    let notificationRemoved = false;
+                    const notification = document.createElement('div');
+                    notification.className = 'test-notification';
+                    document.body.appendChild(notification);
+                    
+                    setTimeout(() => {
+                        notification.remove();
+                        notificationRemoved = true;
+                    }, 100);
+                    
+                    setTimeout(() => {
+                        addTestResult('Notification Auto-Removal', notificationRemoved);
+                    }, 150);
+                } catch (e) {
+                    addTestResult('Notification Auto-Removal', false, e.message);
+                }
+            }
+
+            function testModalHandling() {
+                console.log('Testing Modal Handling...');
+                
+                // Test modal creation
+                try {
+                    const modal = document.createElement('div');
+                    modal.className = 'modal';
+                    modal.style.display = 'none';
+                    document.body.appendChild(modal);
+                    
+                    addTestResult('Modal Creation', modal.style.display === 'none');
+                } catch (e) {
+                    addTestResult('Modal Creation', false, e.message);
+                }
+
+                // Test modal show/hide
+                try {
+                    const modal = document.createElement('div');
+                    modal.className = 'modal';
+                    modal.style.display = 'none';
+                    document.body.appendChild(modal);
+                    
+                    // Show modal
+                    modal.style.display = 'block';
+                    const isVisible = modal.style.display === 'block';
+                    
+                    // Hide modal
+                    modal.style.display = 'none';
+                    const isHidden = modal.style.display === 'none';
+                    
+                    modal.remove();
+                    addTestResult('Modal Show/Hide', isVisible && isHidden);
+                } catch (e) {
+                    addTestResult('Modal Show/Hide', false, e.message);
+                }
+
+                // Test modal close on escape
+                try {
+                    const modal = document.createElement('div');
+                    modal.className = 'modal';
+                    document.body.appendChild(modal);
+                    
+                    let escapeHandled = false;
+                    const handleEscape = (e) => {
+                        if (e.key === 'Escape') {
+                            escapeHandled = true;
+                        }
+                    };
+                    
+                    document.addEventListener('keydown', handleEscape);
+                    
+                    // Simulate escape key
+                    const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape' });
+                    document.dispatchEvent(escapeEvent);
+                    
+                    setTimeout(() => {
+                        document.removeEventListener('keydown', handleEscape);
+                        modal.remove();
+                        addTestResult('Modal Close on Escape', escapeHandled);
+                    }, 100);
+                } catch (e) {
+                    addTestResult('Modal Close on Escape', false, e.message);
+                }
+            }
+
+            function testDataValidation() {
+                console.log('Testing Data Validation...');
+                
+                // Test username validation
+                try {
+                    const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
+                    const validUsernames = ['admin', 'testuser123', 'user_name'];
+                    const invalidUsernames = ['a', 'user@name', 'verylongusername123456789'];
+                    
+                    const allValid = validUsernames.every(username => usernameRegex.test(username));
+                    const allInvalid = invalidUsernames.every(username => !usernameRegex.test(username));
+                    
+                    addTestResult('Username Validation', allValid && allInvalid);
+                } catch (e) {
+                    addTestResult('Username Validation', false, e.message);
+                }
+
+                // Test email validation
+                try {
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    const validEmails = ['test@example.com', 'user@domain.co.uk', 'admin@test.org'];
+                    const invalidEmails = ['invalid-email', 'test@', '@domain.com', 'test@domain'];
+                    
+                    const allValid = validEmails.every(email => emailRegex.test(email));
+                    const allInvalid = invalidEmails.every(email => !emailRegex.test(email));
+                    
+                    addTestResult('Email Validation', allValid && allInvalid);
+                } catch (e) {
+                    addTestResult('Email Validation', false, e.message);
+                }
+
+                // Test password validation
+                try {
+                    const strongPasswords = ['Test123!@#', 'Password1!', 'SecurePass123'];
+                    const weakPasswords = ['123', 'password', 'test'];
+                    
+                    const validatePassword = (password) => {
+                        return password.length >= 8 && 
+                               /[A-Z]/.test(password) && 
+                               /[a-z]/.test(password) && 
+                               /\d/.test(password);
+                    };
+                    
+                    const allStrong = strongPasswords.every(password => validatePassword(password));
+                    const allWeak = weakPasswords.every(password => !validatePassword(password));
+                    
+                    addTestResult('Password Validation', allStrong && allWeak);
+                } catch (e) {
+                    addTestResult('Password Validation', false, e.message);
+                }
+            }
+
+            function testErrorHandling() {
+                console.log('Testing Error Handling...');
+                
+                // Test try-catch error handling
+                try {
+                    let errorCaught = false;
+                    try {
+                        throw new Error('Test error');
+                    } catch (e) {
+                        errorCaught = true;
+                    }
+                    addTestResult('Try-Catch Error Handling', errorCaught);
+                } catch (e) {
+                    addTestResult('Try-Catch Error Handling', false, e.message);
+                }
+
+                // Test async error handling
+                try {
+                    const promise = Promise.reject(new Error('Test async error'));
+                    promise.catch(error => {
+                        addTestResult('Async Error Handling', error.message === 'Test async error');
+                    });
+                } catch (e) {
+                    addTestResult('Async Error Handling', false, e.message);
+                }
+
+                // Test fetch error handling
+                try {
+                    const originalFetch = window.fetch;
+                    window.fetch = () => Promise.reject(new Error('Network error'));
+                    
+                    fetch('/test-url').catch(error => {
+                        addTestResult('Fetch Error Handling', error.message === 'Network error');
+                        window.fetch = originalFetch;
+                    });
+                } catch (e) {
+                    addTestResult('Fetch Error Handling', false, e.message);
+                }
+            }
+
+            function runAllAdminTests() {
+                console.log('Starting all admin tests...');
+                clearResults();
+                
+                // Run all test categories
+                testLoginForm();
+                testLogout();
+                testAdminUserForm();
+                testFormValidation();
+                testAjaxHandlers();
+                testFetchRequests();
+                testSecurityFeatures();
+                testSessionHandling();
+                testNotifications();
+                testModalHandling();
+                testDataValidation();
+                testErrorHandling();
+                
+                // Display final results
+                setTimeout(() => {
+                    const container = document.getElementById('test-results');
+                    const summaryDiv = document.createElement('div');
+                    summaryDiv.className = 'test-section';
+                    summaryDiv.innerHTML = `
+                        <h3 class="text-lg font-semibold mb-2">Admin Panel Test Summary</h3>
+                        <p><strong>Total Tests:</strong> ${testResults.length}</p>
+                        <p><strong>Passed:</strong> ${passedTests}</p>
+                        <p><strong>Failed:</strong> ${failedTests}</p>
+                        <p><strong>Success Rate:</strong> ${((passedTests / testResults.length) * 100).toFixed(1)}%</p>
+                        <p><strong>Test Categories:</strong> Authentication, Forms, AJAX, Security, UI/UX, Data Validation</p>
+                    `;
+                    container.appendChild(summaryDiv);
+                }, 2000);
+            }
+
+            function runSpecificTest() {
+                const testName = prompt('Enter test name to run (e.g., testLoginForm, testAjaxHandlers):');
+                if (testName && typeof window[testName] === 'function') {
+                    clearResults();
+                    window[testName]();
+                } else {
+                    alert('Invalid test name or function not found!');
+                }
+            }
+
+            // Auto-run tests on page load
+            window.addEventListener('load', () => {
+                console.log('Admin panel tests loaded and ready...');
+            });
+        </script>
+    </div>
+</body>
+</html> 

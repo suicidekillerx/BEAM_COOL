@@ -1,4 +1,8 @@
 <?php
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 0); // Don't display errors in JSON response
+
 // Ensure no whitespace before <?php
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -10,10 +14,16 @@ header('Cache-Control: no-cache, must-revalidate');
 header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
 
 // Include functions
-require_once 'includes/functions.php';
+try {
+    require_once 'includes/functions.php';
+} catch (Exception $e) {
+    echo json_encode(['success' => false, 'message' => 'Server configuration error']);
+    exit;
+}
 
 // Handle AJAX requests
-if ((isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') && isset($_POST['action'])) {
+try {
+    if ((isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') && isset($_POST['action'])) {
     switch ($_POST['action']) {
         case 'add_to_cart':
             $productId = (int)$_POST['product_id'];
@@ -33,11 +43,40 @@ if ((isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST')
                         $autoOpenCart = '1';
                     }
                     
-                    echo json_encode([
+                    // Recalculate promo code discount if applied
+                    $appliedPromoCode = getAppliedPromoCode();
+                    $promoInfo = null;
+                    
+                    if ($appliedPromoCode) {
+                        $cartItems = getCartItems();
+                        $subtotal = array_sum(array_column($cartItems, 'total_price'));
+                        
+                        // Revalidate promo code with new cart state
+                        $validation = validatePromoCode($appliedPromoCode['code'], $cartItems, $subtotal);
+                        
+                        if (!$validation['valid']) {
+                            // Remove invalid promo code
+                            removePromoCode();
+                            $promoInfo = ['promo_removed' => true];
+                        } else {
+                            // Recalculate discount
+                            $newDiscount = calculateDiscount($appliedPromoCode, $subtotal);
+                            $_SESSION['applied_promo_code']['discount_amount'] = $newDiscount;
+                            $promoInfo = ['promo_updated' => true, 'new_discount' => $newDiscount];
+                        }
+                    }
+                    
+                    $response = [
                         'success' => true, 
                         'message' => 'Added to cart',
                         'auto_open_cart' => $autoOpenCart === '1'
-                    ]);
+                    ];
+                    
+                    if ($promoInfo) {
+                        $response = array_merge($response, $promoInfo);
+                    }
+                    
+                    echo json_encode($response);
                 } else {
                     echo json_encode(['success' => false, 'message' => 'Failed to add to cart']);
                 }
@@ -76,26 +115,88 @@ if ((isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST')
             echo json_encode(['success' => true, 'items' => $wishlistItems]);
             break;
             
+        case 'update_cart':
+            $cartItemId = (int)$_POST['cart_item_id'];
+            $quantity = (int)$_POST['quantity'];
+            
+            if (updateCartItem($cartItemId, $quantity)) {
+                // Recalculate promo code discount if applied
+                $appliedPromoCode = getAppliedPromoCode();
+                if ($appliedPromoCode) {
+                    $cartItems = getCartItems();
+                    $subtotal = array_sum(array_column($cartItems, 'total_price'));
+                    
+                    // Revalidate promo code with new cart state
+                    $validation = validatePromoCode($appliedPromoCode['code'], $cartItems, $subtotal);
+                    
+                    if (!$validation['valid']) {
+                        // Remove invalid promo code
+                        removePromoCode();
+                        echo json_encode([
+                            'success' => true, 
+                            'message' => 'Cart updated. Promo code removed due to cart changes.',
+                            'promo_removed' => true
+                        ]);
+                    } else {
+                        // Recalculate discount
+                        $newDiscount = calculateDiscount($appliedPromoCode, $subtotal);
+                        $_SESSION['applied_promo_code']['discount_amount'] = $newDiscount;
+                        
+                        echo json_encode([
+                            'success' => true, 
+                            'message' => 'Cart updated successfully.',
+                            'promo_updated' => true,
+                            'new_discount' => $newDiscount
+                        ]);
+                    }
+                } else {
+                    echo json_encode(['success' => true, 'message' => 'Cart updated']);
+                }
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Failed to update cart']);
+            }
+            break;
+            
         case 'remove_from_cart':
             $cartItemId = (int)$_POST['cart_item_id'];
             
             $pdo = getDBConnection();
             $stmt = $pdo->prepare("DELETE FROM cart_items WHERE id = ? AND session_id = ?");
             if ($stmt->execute([$cartItemId, session_id()])) {
-                echo json_encode(['success' => true, 'message' => 'Item removed from cart']);
+                // Recalculate promo code discount if applied
+                $appliedPromoCode = getAppliedPromoCode();
+                if ($appliedPromoCode) {
+                    $cartItems = getCartItems();
+                    $subtotal = array_sum(array_column($cartItems, 'total_price'));
+                    
+                    // Revalidate promo code with new cart state
+                    $validation = validatePromoCode($appliedPromoCode['code'], $cartItems, $subtotal);
+                    
+                    if (!$validation['valid']) {
+                        // Remove invalid promo code
+                        removePromoCode();
+                        echo json_encode([
+                            'success' => true, 
+                            'message' => 'Item removed from cart. Promo code removed due to cart changes.',
+                            'promo_removed' => true
+                        ]);
+                    } else {
+                        // Recalculate discount
+                        $newDiscount = calculateDiscount($appliedPromoCode, $subtotal);
+                        $_SESSION['applied_promo_code']['discount_amount'] = $newDiscount;
+                        
+                        echo json_encode([
+                            'success' => true, 
+                            'message' => 'Item removed from cart',
+                            'promo_updated' => true,
+                            'new_discount' => $newDiscount
+                        ]);
+                    }
+                } else {
+                    echo json_encode(['success' => true, 'message' => 'Item removed from cart']);
+                }
             } else {
                 echo json_encode(['success' => false, 'message' => 'Failed to remove item from cart']);
-            }
-            break;
-            
-        case 'update_cart':
-            $cartItemId = (int)$_POST['cart_item_id'];
-            $quantity = (int)$_POST['quantity'];
-            
-            if (updateCartItem($cartItemId, $quantity)) {
-                echo json_encode(['success' => true, 'message' => 'Cart updated']);
-            } else {
-                echo json_encode(['success' => false, 'message' => 'Failed to update cart']);
             }
             break;
             
@@ -315,75 +416,258 @@ if ((isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST')
             echo json_encode($result);
             break;
             
-        default:
-            echo json_encode(['success' => false, 'message' => 'Invalid action']);
-    }
-    
-    exit;
-}
-
-// Handle GET requests with action parameter
-if ((isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'GET') && isset($_GET['action'])) {
-    switch ($_GET['action']) {
-        case 'update_content':
-            // Get JSON data from request body
-            $jsonData = file_get_contents('php://input');
-            $data = json_decode($jsonData, true);
-            
-            if (!$data || !isset($data['key']) || !isset($data['value'])) {
-                echo json_encode(['success' => false, 'message' => 'Invalid data format']);
-                exit;
+        case 'add_video_section':
+            if (!isset($_FILES['video_file']) || $_FILES['video_file']['error'] !== UPLOAD_ERR_OK) {
+                echo json_encode(['success' => false, 'message' => 'Please select a valid video file']);
+                break;
             }
             
-            // Parse the content key (format: section.key)
-            $keyParts = explode('.', $data['key']);
-            if (count($keyParts) !== 2) {
-                echo json_encode(['success' => false, 'message' => 'Invalid content key format']);
-                exit;
+            $videoFile = $_FILES['video_file'];
+            $slugText = $_POST['slug_text'] ?? '';
+            $description = $_POST['description'] ?? '';
+            $buttonText = $_POST['button_text'] ?? '';
+            $buttonLink = $_POST['button_link'] ?? '#';
+            
+            // Validate required fields
+            if (empty($slugText) || empty($description) || empty($buttonText)) {
+                echo json_encode(['success' => false, 'message' => 'Please fill in all required fields']);
+                break;
             }
             
-            $section = $keyParts[0];
-            $key = $keyParts[1];
-            $value = $data['value'];
-            
-            // Update the content
-            if (updateAboutContent($section, $key, $value)) {
-                echo json_encode(['success' => true, 'message' => 'Content updated successfully']);
-            } else {
-                echo json_encode(['success' => false, 'message' => 'Failed to update content']);
+            // Check file type
+            $allowedTypes = ['video/mp4', 'video/webm', 'video/avi', 'video/mov'];
+            if (!in_array($videoFile['type'], $allowedTypes)) {
+                echo json_encode(['success' => false, 'message' => 'Invalid video file type. Please upload MP4, WebM, AVI, or MOV files']);
+                break;
             }
-            break;
             
-        default:
-            echo json_encode(['success' => false, 'message' => 'Invalid action']);
-    }
-    
-    exit;
-}
-
-// If not a valid request, return error
-echo json_encode(['success' => false, 'message' => 'Invalid request']);
-exit;
-?>
-                    echo json_encode([
-                        'success' => true,
-                        'message' => $result['message'],
-                        'promo_code' => $result['promo_code'],
-                        'discount_amount' => $result['discount_amount']
-                    ]);
+            // Create video directory if it doesn't exist
+            $videoDir = 'video';
+            if (!is_dir($videoDir)) {
+                mkdir($videoDir, 0755, true);
+            }
+            
+            // Generate unique filename
+            $extension = pathinfo($videoFile['name'], PATHINFO_EXTENSION);
+            $filename = 'video_' . time() . '_' . uniqid() . '.' . $extension;
+            $filepath = $videoDir . '/' . $filename;
+            
+            // Move uploaded file
+            if (move_uploaded_file($videoFile['tmp_name'], $filepath)) {
+                $pdo = getDBConnection();
+                $stmt = $pdo->prepare("INSERT INTO video_section (slug_text, description, video_path, button_text, button_link, is_active) VALUES (?, ?, ?, ?, ?, 1)");
+                
+                if ($stmt->execute([$slugText, $description, $filepath, $buttonText, $buttonLink])) {
+                    echo json_encode(['success' => true, 'message' => 'Video section added successfully']);
                 } else {
-                    echo json_encode(['success' => false, 'message' => $result['message']]);
+                    // Delete uploaded file if database insert fails
+                    unlink($filepath);
+                    echo json_encode(['success' => false, 'message' => 'Failed to save video section to database']);
                 }
             } else {
-                echo json_encode(['success' => false, 'message' => 'Please enter a promo code']);
+                echo json_encode(['success' => false, 'message' => 'Failed to upload video file']);
             }
             break;
             
-        case 'remove_promo_code':
-            error_log("remove_promo_code action received");
-            $result = removePromoCode();
-            error_log("Remove result: " . json_encode($result));
-            echo json_encode($result);
+        case 'toggle_video_section':
+            $sectionId = (int)$_POST['section_id'];
+            $isActive = (int)$_POST['is_active'];
+            
+            $pdo = getDBConnection();
+            
+            // If activating this section, deactivate all others first
+            if ($isActive == 1) {
+                // Deactivate all video sections
+                $stmt = $pdo->prepare("UPDATE video_section SET is_active = 0");
+                $stmt->execute();
+            }
+            
+            // Now activate/deactivate the specific section
+            $stmt = $pdo->prepare("UPDATE video_section SET is_active = ? WHERE id = ?");
+            
+            if ($stmt->execute([$isActive, $sectionId])) {
+                $action = $isActive == 1 ? 'activated' : 'deactivated';
+                echo json_encode(['success' => true, 'message' => "Video section {$action} successfully"]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Failed to update video section status']);
+            }
+            break;
+            
+        case 'delete_video_section':
+            $sectionId = (int)$_POST['section_id'];
+            
+            $pdo = getDBConnection();
+            
+            // Get video file path before deleting
+            $stmt = $pdo->prepare("SELECT video_path FROM video_section WHERE id = ?");
+            $stmt->execute([$sectionId]);
+            $videoPath = $stmt->fetchColumn();
+            
+            // Delete from database
+            $stmt = $pdo->prepare("DELETE FROM video_section WHERE id = ?");
+            
+            if ($stmt->execute([$sectionId])) {
+                // Delete video file if it exists
+                if ($videoPath && file_exists($videoPath)) {
+                    unlink($videoPath);
+                }
+                echo json_encode(['success' => true, 'message' => 'Video section deleted successfully']);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Failed to delete video section']);
+            }
+            break;
+            
+        case 'add_admin_user':
+            $fullName = $_POST['admin_full_name'] ?? '';
+            $username = $_POST['admin_username'] ?? '';
+            $password = $_POST['admin_password'] ?? '';
+            $role = $_POST['admin_role'] ?? 'admin';
+            
+            if (empty($fullName) || empty($username) || empty($password)) {
+                echo json_encode(['success' => false, 'message' => 'Please fill in all required fields']);
+                break;
+            }
+            
+            $pdo = getDBConnection();
+            
+            // Check if username already exists
+            $stmt = $pdo->prepare("SELECT id FROM admin_users WHERE username = ?");
+            $stmt->execute([$username]);
+            if ($stmt->fetch()) {
+                echo json_encode(['success' => false, 'message' => 'Username already exists']);
+                break;
+            }
+            
+            // Hash password
+            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+            
+            // Insert new admin user
+            $stmt = $pdo->prepare("INSERT INTO admin_users (full_name, username, password, role) VALUES (?, ?, ?, ?)");
+            
+            if ($stmt->execute([$fullName, $username, $hashedPassword, $role])) {
+                echo json_encode(['success' => true, 'message' => 'Admin user added successfully']);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Failed to add admin user']);
+            }
+            break;
+            
+        case 'delete_admin_user':
+            $userId = (int)$_POST['user_id'];
+            
+            $pdo = getDBConnection();
+            
+            // Don't allow deleting the current user
+            if (isset($_SESSION['admin_user_id']) && $_SESSION['admin_user_id'] == $userId) {
+                echo json_encode(['success' => false, 'message' => 'Cannot delete your own account']);
+                break;
+            }
+            
+            $stmt = $pdo->prepare("DELETE FROM admin_users WHERE id = ?");
+            
+            if ($stmt->execute([$userId])) {
+                echo json_encode(['success' => true, 'message' => 'Admin user deleted successfully']);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Failed to delete admin user']);
+            }
+            break;
+            
+        case 'get_products':
+            // Get filter parameters
+            $filters = [];
+            
+            if (!empty($_POST['category'])) {
+                $filters['category'] = $_POST['category'];
+            }
+            if (!empty($_POST['collection'])) {
+                $filters['collection'] = $_POST['collection'];
+            }
+            if (!empty($_POST['search'])) {
+                $filters['search'] = $_POST['search'];
+            }
+            if (!empty($_POST['size'])) {
+                $filters['size'] = $_POST['size'];
+            }
+            if (!empty($_POST['limit'])) {
+                $filters['limit'] = (int)$_POST['limit'];
+            }
+            if (!empty($_POST['offset'])) {
+                $filters['offset'] = (int)$_POST['offset'];
+            }
+            
+            try {
+                // Get products with filters
+                $products = getProducts($filters);
+                
+                // Get total count for pagination
+                $totalProducts = count(getProducts(array_diff_key($filters, ['limit' => '', 'offset' => ''])));
+                
+                echo json_encode([
+                    'success' => true, 
+                    'products' => $products,
+                    'total' => $totalProducts,
+                    'count' => count($products)
+                ]);
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'message' => 'Error fetching products: ' . $e->getMessage()]);
+            }
+            break;
+            
+        case 'search_products':
+            $searchQuery = $_POST['query'] ?? '';
+            $limit = (int)($_POST['limit'] ?? 10);
+            $offset = (int)($_POST['offset'] ?? 0);
+            
+            if (empty($searchQuery)) {
+                echo json_encode(['success' => true, 'products' => [], 'total' => 0, 'count' => 0]);
+                break;
+            }
+            
+            try {
+                $filters = [
+                    'search' => $searchQuery,
+                    'limit' => $limit,
+                    'offset' => $offset
+                ];
+                
+                $products = getProducts($filters);
+                $totalProducts = count(getProducts(['search' => $searchQuery]));
+                
+                echo json_encode([
+                    'success' => true,
+                    'products' => $products,
+                    'total' => $totalProducts,
+                    'count' => count($products),
+                    'query' => $searchQuery
+                ]);
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'message' => 'Error searching products: ' . $e->getMessage()]);
+            }
+            break;
+            
+        case 'get_item':
+            $table = $_POST['table'] ?? '';
+            $id = (int)($_POST['id'] ?? 0);
+            
+            if (empty($table) || $id <= 0) {
+                echo json_encode(['success' => false, 'message' => 'Invalid table or ID']);
+                break;
+            }
+            
+            $pdo = getDBConnection();
+            
+            try {
+                $stmt = $pdo->prepare("SELECT * FROM `$table` WHERE id = ?");
+                $stmt->execute([$id]);
+                $item = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if ($item) {
+                    echo json_encode(['success' => true, 'item' => $item]);
+                } else {
+                    echo json_encode(['success' => false, 'message' => 'Item not found']);
+                }
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+            }
             break;
             
         default:
@@ -435,4 +719,13 @@ if ((isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'GET') 
 // If not a valid request, return error
 echo json_encode(['success' => false, 'message' => 'Invalid request']);
 exit;
+} catch (Exception $e) {
+    // Global error handler
+    echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+    exit;
+} catch (Error $e) {
+    // Handle fatal errors
+    echo json_encode(['success' => false, 'message' => 'Fatal error: ' . $e->getMessage()]);
+    exit;
+}
 ?>

@@ -48,7 +48,7 @@ function updateInventoryOnOrderConfirm($orderId) {
             // Update product stock status if needed
             updateProductStockStatus($item['product_id']);
         }
-        
+
         // Update order status to confirmed
         $updateOrderStmt = $pdo->prepare("
             UPDATE orders 

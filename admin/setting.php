@@ -1,6 +1,9 @@
 <?php
-
+require_once 'includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+
+// Check if user is logged in
+requireAuth();
 
 // Handle AJAX requests (add/edit/delete/toggle/save for all tables)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -187,6 +190,8 @@ $pdo = getDBConnection();
 $stmt = $pdo->prepare("SELECT * FROM video_section ORDER BY created_at DESC");
 $stmt->execute();
 $video_sections = $stmt->fetchAll();
+
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -217,6 +222,7 @@ $video_sections = $stmt->fetchAll();
                     <button class="tab-btn px-4 py-2 rounded" data-tab="footer_sections">Footer Sections</button>
                     <button class="tab-btn px-4 py-2 rounded" data-tab="footer_links">Footer Links</button>
                     <button class="tab-btn px-4 py-2 rounded" data-tab="social_media">Social Media</button>
+                    <button class="tab-btn px-4 py-2 rounded" data-tab="login">Login</button>
                 </div>
                 <div id="tab-site_settings" class="tab-content active">
                     <?php include 'partials/settings_site_settings.php'; ?>
@@ -232,6 +238,9 @@ $video_sections = $stmt->fetchAll();
                 </div>
                 <div id="tab-social_media" class="tab-content">
                     <?php include 'partials/settings_social_media.php'; ?>
+                </div>
+                <div id="tab-login" class="tab-content">
+                    <?php include 'partials/settings_login.php'; ?>
                 </div>
             </main>
         </div>
@@ -280,9 +289,7 @@ $video_sections = $stmt->fetchAll();
     });
     </script>
 </body>
-</html>            }
-        });
-    });
+</html>            
     </script>
 </body>
 </html>

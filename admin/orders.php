@@ -1,6 +1,9 @@
 <?php
-session_start();
+require_once 'includes/auth.php';
 require_once '../includes/functions.php';
+
+// Check if user is logged in
+requireAuth();
 
 $currentPage = 'orders';
 $pageTitle = 'Orders';
@@ -115,6 +118,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } catch (Exception $e) {
                     $errorMessage = "Error sending order #" . getOrderNumber($orderId) . " to delivery platform: " . $e->getMessage();
                     error_log($errorMessage);
+                }
+                break;
+                
+            case 'delete_orders':
+                $orderIds = $_POST['order_ids'] ?? [];
+                
+                if (empty($orderIds)) {
+                    $errorMessage = "No orders selected for deletion.";
+                } else {
+                    $pdo = getDBConnection();
+                    
+                    try {
+                        $pdo->beginTransaction();
+                        
+                        $deletedCount = 0;
+                        $failedCount = 0;
+                        
+                        foreach ($orderIds as $orderId) {
+                            $orderId = (int)$orderId;
+                            
+                            // Check if order exists and can be deleted
+                            $orderStmt = $pdo->prepare("SELECT order_status FROM orders WHERE id = ?");
+                            $orderStmt->execute([$orderId]);
+                            $order = $orderStmt->fetch(PDO::FETCH_ASSOC);
+                            
+                            if ($order) {
+                                // Delete order items first
+                                $deleteItemsStmt = $pdo->prepare("DELETE FROM order_items WHERE order_id = ?");
+                                $deleteItemsStmt->execute([$orderId]);
+                                
+                                // Delete the order
+                                $deleteOrderStmt = $pdo->prepare("DELETE FROM orders WHERE id = ?");
+                                if ($deleteOrderStmt->execute([$orderId])) {
+                                    $deletedCount++;
+                                } else {
+                                    $failedCount++;
+                                }
+                            } else {
+                                $failedCount++;
+                            }
+                        }
+                        
+                        $pdo->commit();
+                        
+                        if ($deletedCount > 0) {
+                            $successMessage = "Successfully deleted $deletedCount order(s).";
+                            if ($failedCount > 0) {
+                                $successMessage .= " $failedCount order(s) could not be deleted.";
+                            }
+                        } else {
+                            $errorMessage = "No orders were deleted.";
+                        }
+                        
+                    } catch (Exception $e) {
+                        $pdo->rollBack();
+                        $errorMessage = "Error deleting orders: " . $e->getMessage();
+                        error_log($errorMessage);
+                    }
                 }
                 break;
                 
@@ -387,7 +448,7 @@ $statsStmt = $pdo->query("
         SUM(CASE WHEN order_status = 'shipped' THEN 1 ELSE 0 END) as shipped_orders,
         SUM(CASE WHEN order_status = 'delivered' THEN 1 ELSE 0 END) as delivered_orders,
         SUM(CASE WHEN order_status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_orders,
-        SUM(total) as total_revenue
+        SUM(CASE WHEN order_status = 'delivered' THEN total ELSE 0 END) as total_revenue
     FROM orders
 ");
 $stats = $statsStmt->fetch();
@@ -525,6 +586,14 @@ $statusCounts = $statusCountsStmt->fetchAll();
         .order-row.selected {
             background-color: #e0e7ff !important;
             border-left-color: #6366f1 !important;
+        }
+        
+        .order-row {
+            border-left: 3px solid transparent;
+        }
+        
+        .order-row:hover {
+            border-left-color: #ef4444;
         }
         
         .bulk-actions {
@@ -837,6 +906,10 @@ $statusCounts = $statusCountsStmt->fetchAll();
                                     <i class="fas fa-download mr-2"></i>
                                     Export Selected
                                 </button>
+                                <button type="button" onclick="deleteSelectedOrders()" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" id="deleteSelectedBtn" disabled>
+                                    <i class="fas fa-trash mr-2"></i>
+                                    Delete Selected
+                                </button>
                             </div>
                             <div class="flex items-center space-x-2">
                                 <button type="button" onclick="selectAllVisible()" class="text-blue-600 hover:text-blue-800 transition-colors text-sm">
@@ -892,7 +965,9 @@ $statusCounts = $statusCountsStmt->fetchAll();
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($orders as $order): ?>
-                                        <tr class="order-row status-<?php echo $order['order_status']; ?>" data-order-id="<?php echo $order['id']; ?>">
+                                        <tr class="order-row status-<?php echo $order['order_status']; ?>" 
+                                            data-order-id="<?php echo $order['id']; ?>"
+                                            data-deletable="true">
                                             <td class="px-6 py-4">
                                                 <input type="checkbox" name="order_ids[]" value="<?php echo $order['id']; ?>" 
                                                        class="order-checkbox rounded border-gray-300 text-black focus:ring-black">
@@ -1302,17 +1377,20 @@ $statusCounts = $statusCountsStmt->fetchAll();
         const updateBtn = document.getElementById('updateSelectedBtn');
         const printBtn = document.getElementById('printSelectedBtn');
         const exportBtn = document.getElementById('exportSelectedBtn');
+        const deleteBtn = document.getElementById('deleteSelectedBtn');
         
         if (selectedCount > 0) {
             bulkActions.classList.add('has-selection');
             updateBtn.disabled = false;
             printBtn.disabled = false;
             exportBtn.disabled = false;
+            deleteBtn.disabled = false;
         } else {
             bulkActions.classList.remove('has-selection');
             updateBtn.disabled = true;
             printBtn.disabled = true;
             exportBtn.disabled = true;
+            deleteBtn.disabled = true;
         }
     }
     
@@ -1871,6 +1949,47 @@ $statusCounts = $statusCountsStmt->fetchAll();
         actionInput.type = 'hidden';
         actionInput.name = 'action';
         actionInput.value = 'export';
+        form.appendChild(actionInput);
+        
+        orderIds.forEach(orderId => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'order_ids[]';
+            input.value = orderId;
+            form.appendChild(input);
+        });
+        
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+    }
+    
+    // Delete selected orders
+    function deleteSelectedOrders() {
+        const selectedCheckboxes = document.querySelectorAll('.order-checkbox:checked');
+        if (selectedCheckboxes.length === 0) {
+            alert('Please select orders to delete.');
+            return;
+        }
+        
+        const orderIds = Array.from(selectedCheckboxes).map(checkbox => checkbox.value);
+        
+        // Show confirmation dialog
+        const confirmMessage = `Are you sure you want to delete ${selectedCheckboxes.length} selected order(s)?\n\nThis action cannot be undone and will permanently remove the orders from the system.`;
+        
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+        
+        // Create a form to submit the delete request
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = window.location.href;
+        
+        const actionInput = document.createElement('input');
+        actionInput.type = 'hidden';
+        actionInput.name = 'action';
+        actionInput.value = 'delete_orders';
         form.appendChild(actionInput);
         
         orderIds.forEach(orderId => {

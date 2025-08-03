@@ -18,6 +18,7 @@ async function makeRequest(action, table, data = null, id = null) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
             },
             body: JSON.stringify(requestData)
         });
@@ -26,6 +27,19 @@ async function makeRequest(action, table, data = null, id = null) {
         const result = await response.json();
         console.log('Response data:', result);
         
+        // Check for session expiration
+        if (result.error === 'session_expired' || result.redirect) {
+            // Show session expired message
+            showAlert('Your session has expired. Redirecting to login page...', 'error');
+            
+            // Redirect to login page after a short delay
+            setTimeout(() => {
+                window.location.href = result.redirect || 'login.php?error=session_expired';
+            }, 2000);
+            
+            return;
+        }
+        
         if (!result.success) {
             throw new Error(result.error || 'Operation failed');
         }
@@ -33,6 +47,16 @@ async function makeRequest(action, table, data = null, id = null) {
     } catch (error) {
         console.error('Request failed:', error);
         console.error('Request data was:', requestData);
+        
+        // Check if it's a session-related error
+        if (error.message.includes('session') || error.message.includes('login')) {
+            showAlert('Session expired. Redirecting to login...', 'error');
+            setTimeout(() => {
+                window.location.href = 'login.php?error=session_expired';
+            }, 2000);
+            return;
+        }
+        
         throw error;
     }
 }

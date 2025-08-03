@@ -1,6 +1,9 @@
 <?php
-session_start();
+require_once 'includes/auth.php';
 require_once '../includes/functions.php';
+
+// Check if user is logged in
+requireAuth();
 
 $currentPage = 'categories';
 $pageTitle = 'Categories';

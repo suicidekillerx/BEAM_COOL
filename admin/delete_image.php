@@ -59,7 +59,7 @@ try {
             WHERE product_id = ? 
             ORDER BY sort_order ASC, id ASC 
             LIMIT 1
-        ");
+        ");         
         $stmt->execute([$productId]);
     }
     
@@ -70,8 +70,6 @@ try {
             error_log("Warning: Could not delete physical file: $filePath");
         }
     }
-    
-    // Commit transaction
     $pdo->commit();
     
     echo json_encode([
